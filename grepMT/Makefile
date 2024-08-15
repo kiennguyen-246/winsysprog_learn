@@ -13,3 +13,8 @@ run_Win_threads:
 run_spam:
 	g++ -std=c++23 -g -municode -Wall spam.cpp -o spam.exe
 	./spam text.txt 10
+
+run_test:
+	del test.out
+	g++ -std=c++23 -g -municode -Wall test.cpp -o test.exe
+	./test
