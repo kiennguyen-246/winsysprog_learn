@@ -1,7 +1,9 @@
 #include <iostream>
+#include <string>
 #include <fstream>
 #include <cstdio>
 #include <windows.h>
+#include <io.h>
 #include <fcntl.h>
 
 const int MAX_BUFFER_SIZE = 1024;
