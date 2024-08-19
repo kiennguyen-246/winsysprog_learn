@@ -8,6 +8,10 @@ run_server:
 	g++ -std=c++23 -municode -g -Wall NPServer.cpp -o NPServer.exe
 	./NPServer.exe
 
+run_server_svc:
+	g++ -std=c++23 -municode -Wall NPServerSvc.cpp -o NPServerSvc.exe
+	./NPServerSvc.exe
+
 run_client:
 	g++ -std=c++23 -municode -g -Wall NPClient.cpp -o NPClient.exe
 	./NPClient.exe

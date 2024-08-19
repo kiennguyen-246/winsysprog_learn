@@ -1,17 +1,4 @@
-#include <iostream>
-#include <cstdio>
-#include <fstream>
-#include <sstream>
-#include <future>
-#include <windows.h>
-#include <io.h>
-#include <fcntl.h>
-
-const int MAX_BUFFER_SIZE = 1024;
-const int MAX_RETRIES = 60;
-const int MAX_CLIENTS = 2;
-
-volatile bool stopFlag;
+#include "NPServer.hpp"
 
 void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::wstring &response)
 {
@@ -79,54 +66,85 @@ void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::ws
     CloseHandle(procInfo.hProcess);
 }
 
-bool serverThread(HANDLE pipeHandle, const std::wstring &tmpFileName)
+bool connectNamedPipeThreadFunc(HANDLE __pipeHandle)
 {
-    BYTE buffer[MAX_BUFFER_SIZE];
-    DWORD dwRead = 0;
-    DWORD dwWritten = 0;
-    std::wstring cmd = L"";
+    auto ret = ConnectNamedPipe(__pipeHandle, NULL);
+    return (ret != 0);
+}
+
+bool serverThreadFunc(HANDLE pipeHandle, const std::wstring &tmpFileName)
+{
     while (!stopFlag)
     {
-        auto connectFuture = std::async([](HANDLE __pipeHandle) -> bool
-                                        {
-            ConnectNamedPipe(__pipeHandle, NULL);
-            return 1; }, pipeHandle);
-        while (!stopFlag && !connectFuture.valid())
+        // auto connectFuture = std::async([](HANDLE __pipeHandle) -> bool
+        //                                 {
+        //     ConnectNamedPipe(__pipeHandle, NULL);
+        //     return 1; }, pipeHandle);
+        BYTE buffer[MAX_BUFFER_SIZE];
+        DWORD dwRead = 0;
+        DWORD dwWritten = 0;
+        auto connectFuture = std::async(connectNamedPipeThreadFunc, pipeHandle);
+        ULONG clientPID = 0;
+        auto ok = connectFuture.get();
+        GetNamedPipeClientProcessId(pipeHandle, &clientPID);
+        if (!ok || stopFlag)
         {
-            // do nothing
-        };
-        LPWSTR str = (LPWSTR)buffer;
-        str[dwRead / 2] = L'\0';
-        cmd += std::wstring(str);
-        // std::wcout << L"Client process " << clientPID << L" queried: " << cmd << L"\n";
-        if (cmd == L"server_stop")
-        {
-            std::wstring ln = L"Server has been shut down successfully\n";
-            WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
-            stopFlag = 1;
+            continue;
         }
-        else
+        std::wcout << "Successfully connected with process with PID " << clientPID << "\n";
+        while (!stopFlag && ReadFile(pipeHandle, buffer, sizeof(buffer) - 2, &dwRead, NULL))
         {
-            std::wstring response;
-            processQuery(cmd, std::wstring(tmpFileName), response);
-            if (response != L"")
+            std::wstring cmd = L"";
+            LPWSTR str = (LPWSTR)buffer;
+            str[dwRead / 2] = L'\0';
+            cmd += std::wstring(str);
+            std::wcout << L"Client process " << clientPID << L" queried: " << cmd << L"\n";
+            if (cmd == L"quit")
             {
-                WriteFile(pipeHandle, &response[0], (DWORD)response.size() * 2, &dwWritten, NULL);
+                std::wcout << L"Client process " << clientPID << L" is leaving\n";
+                // WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
+                // continue;
             }
-            else
+            if (stopFlag == 1 || cmd == L"server_stop")
             {
-                std::wifstream fi(&tmpFileName[0]);
-                std::wstring ln;
-                while (getline(fi, ln))
+                std::wstring ln = L"Server is shutting down and will no longer answer queries\nType \"quit\" to exit\n";
+                WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
+                stopFlag = 1;
+                continue;
+            }
+            if (!stopFlag)
+            {
+                std::wstring response;
+                if (cmd != L"quit")
                 {
-                    ln += L"\n";
-                    WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
+                    processQuery(cmd, std::wstring(tmpFileName), response);
+                }
+
+                if (response != L"")
+                {
+                    WriteFile(pipeHandle, &response[0], (DWORD)response.size() * 2, &dwWritten, NULL);
+                }
+                else
+                {
+                    std::wifstream fi(&tmpFileName[0]);
+                    std::wstring ln;
+                    while (getline(fi, ln))
+                    {
+                        ln += L"\n";
+                        WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
+                    }
+                    fi.close();
                 }
             }
+
+            std::wstring endS = L" ";
+            WriteFile(pipeHandle, &endS[0], (DWORD)endS.size() * 2, &dwWritten, NULL);
+            FlushFileBuffers(pipeHandle);
         }
+        std::wcout << "Successfully disconnected with process with PID " << clientPID << "\n";
+        FlushFileBuffers(pipeHandle);
+        DisconnectNamedPipe(pipeHandle);
     }
-    // std::wcout << L"Pipe to client process with PID " << clientPID << L" has been disconnected\n";
-    DisconnectNamedPipe(pipeHandle);
     return 1;
 }
 
@@ -134,14 +152,15 @@ int wmain(int argc, LPWSTR argv[])
 {
     _setmode(_fileno(stdout), _O_WTEXT);
     std::wstring pipeName = L"\\\\.\\pipe\\cmdPipe";
-    std::future<bool> clientFutures[MAX_CLIENTS];
+    std::future<bool> serverFutures[MAX_CLIENTS];
     HANDLE threadPipeHandles[MAX_CLIENTS];
     WCHAR tmpFileName[MAX_CLIENTS][MAX_PATH];
     CreateDirectoryW(L".\\Temp", NULL);
+    std::wcout << L"Server is ready\n";
     for (int i = 0; i < MAX_CLIENTS; ++i)
     {
         GetTempFileNameW(L".\\Temp", L"out", 0, tmpFileName[i]);
-        auto pipeHandle = CreateNamedPipe(
+        threadPipeHandles[i] = CreateNamedPipe(
             &pipeName[0],
             PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
@@ -150,39 +169,20 @@ int wmain(int argc, LPWSTR argv[])
             0,
             INFINITE,
             NULL);
-        threadPipeHandles[i] = pipeHandle;
-        clientFutures[i] = std::async(serverThread, pipeHandle, &tmpFileName[i][0]);
+        serverFutures[i] = std::async(serverThreadFunc, threadPipeHandles[i], &tmpFileName[i][0]);
     }
-    std::wcout << L"Server is ready\n";
-    bool stopFlag = 0;
-    while (!stopFlag && pipeHandle != INVALID_HANDLE_VALUE)
+    stopFlag = 0;
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
     {
-        if (ConnectNamedPipe(pipeHandle, NULL))
-        {
-            ULONG clientPID = 0;
-            GetNamedPipeClientProcessId(pipeHandle, &clientPID);
-            std::wcout << L"Pipe to client process with PID " << clientPID << L" has been connected\n";
-            int threadId = 0;
-            while (!threadId)
-            {
-                for (int i = 0; i < MAX_CLIENTS; i++)
-                {
-                    if (clientFutures[i].valid())
-                    {
-                        threadId = i;
-                        break;
-                    }
-                }
-            }
-            clientFutures[threadId] = std::async(std::launch::async, processClientThread, pipeHandle, std::wstring(tmpFileName[threadId]), clientPID);
-            // processClientThread(pipeHandle, std::wstring(tmpFileName[threadId]), clientPID, stopFlag);
-            // clientFutures[threadId].get();
-        }
+        serverFutures[i].get();
     }
+    std::wcout << "Server has shut down";
+
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
         DeleteFileW(tmpFileName[i]);
+        CloseHandle(threadPipeHandles[i]);
     }
-    CloseHandle(pipeHandle);
     return 0;
 }
