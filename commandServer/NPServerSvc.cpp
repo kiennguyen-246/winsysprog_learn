@@ -40,7 +40,9 @@ void WINAPI svcMain(int argc, LPWSTR argv[])
 int svcSpecific(int argc, LPWSTR argv[])
 {
     svcStatusUpdate(-1, -1);
-
+    WCHAR cwd[MAX_PATH];
+    GetCurrentDirectory(MAX_PATH, cwd);
+    svcLogEvent(std::wstring(L"Current working directory: ") + cwd);
     STARTUPINFOW startupInfo;
     GetStartupInfoW(&startupInfo);
     PROCESS_INFORMATION procInfo;
@@ -58,34 +60,44 @@ int svcSpecific(int argc, LPWSTR argv[])
             &procInfo))
     {
         auto error = GetLastError();
-        std::wcout << L"Failed to create process for NPServer. Error: ";
+        std::wstring errmsg = L"Failed to create process for NPServer. Error: ";
         switch (error)
         {
         case ERROR_FILE_NOT_FOUND:
-            std::wcout << L"File not found\n";
+            errmsg += L"File not found\n";
             break;
         case ERROR_ACCESS_DENIED:
-            std::wcout << L"Access denied\n";
+            errmsg += L"Access denied\n";
             break;
         case ERROR_INVALID_PARAMETER:
-            std::wcout << L"Invalid parameter\n";
+            errmsg += L"Invalid parameter\n";
             break;
 
         // ... other error cases ...
         default:
-            std::wcout << L"Unknown error code\n";
+            errmsg += L"Unknown error code\n";
             break;
         };
+        svcLogEvent(errmsg, EVENTLOG_ERROR_TYPE);
+        svcStatus.dwCurrentState = SERVICE_STOPPED;
+        svcStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+        svcStatus.dwServiceSpecificExitCode = 1;
+        svcStatusUpdate(SERVICE_STOPPED, -1);
+        return 0;
     }
     svcStatusUpdate(SERVICE_RUNNING, -1);
-    svcLogEvent(L"Service is running");
-
+    svcLogEvent(L"Successfully created process for NPServer.exe. Service is running");
     while (WaitForSingleObject(procInfo.hProcess, 1000) != WAIT_OBJECT_0)
     {
+        if (shutdownFlag)
+        {
+            TerminateProcess(procInfo.hProcess, 1);
+            continue;
+        }
         svcStatusUpdate(-1, -1);
         svcLogEvent(L"Service is running");
     }
-
+    CloseHandle(procInfo.hProcess);
     svcLogEvent(L"Service process has shut down.");
     return 0;
 }
@@ -147,24 +159,28 @@ bool svcStatusUpdate(const int &newStatus, const int &checkPointMod)
 bool svcLogEvent(const std::wstring &msg, const int &eventType)
 {
     auto currentTime = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    fo << L"[" << std::ctime(&currentTime) << L"]";
+    logFo << L"[" << strtok(std::ctime(&currentTime), "\n") << L"]";
     switch (eventType)
     {
     case EVENTLOG_SUCCESS:
     case EVENTLOG_INFORMATION_TYPE:
-        fo << L"(Information)";
+        logFo << L"(Information)";
         break;
     case EVENTLOG_ERROR_TYPE:
-        fo << L"(Error)      ";
+        logFo << L"(Error)      ";
         break;
     case EVENTLOG_WARNING_TYPE:
-        fo << L"(Warning)    ";
+        logFo << L"(Warning)    ";
         break;
     default:
-        fo << L"(Unknown)    ";
+        logFo << L"(Unknown)    ";
         break;
     }
-    fo << msg << L"\n";
+    wchar_t msgs[1][1000];
+    wcscpy(msgs[0], &msg[0]);
+    ReportEventW(NULL, eventType, 0, eventId++, NULL, 1, sizeof(msg), (LPCWSTR *)msgs, NULL);
+    logFo << msg << L"\n";
+    logFo.flush();
     return 1;
 }
 
@@ -175,15 +191,16 @@ bool svcLogEvent(const std::wstring &msg)
 
 bool svcLogInit()
 {
-    std::wofstream fo(&logFileName[0]);
+    logFo.open(&logFileName[0]);
     svcLogEvent(L"Logging successfully initialized");
-    return fo.is_open();
+    RegisterEventSourceW(NULL, &svcName[0]);
+    return logFo.is_open();
 }
 
 bool svcLogClose()
 {
-    fo.close();
     svcLogEvent(L"Logging successfully closed");
+    logFo.close();
     return 1;
 }
 

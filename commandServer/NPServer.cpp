@@ -6,7 +6,7 @@ void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::ws
     // _wsystem(&fullCmd[0]);
     // std::wcout << fullCmd << L"\n";
     SECURITY_ATTRIBUTES tempSA = {sizeof(SECURITY_ATTRIBUTES), NULL, TRUE};
-    auto tmpFileHandle = CreateFile(
+    auto tmpFileHandle = CreateFileW(
         &outputFilePath[0],
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -15,7 +15,7 @@ void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::ws
         FILE_ATTRIBUTE_TEMPORARY,
         NULL);
     STARTUPINFOW startupInfo;
-    GetStartupInfo(&startupInfo);
+    GetStartupInfoW(&startupInfo);
     startupInfo.hStdOutput = tmpFileHandle;
     startupInfo.hStdError = tmpFileHandle;
     startupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -35,24 +35,29 @@ void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::ws
     {
         auto error = GetLastError();
         std::wcout << L"Failed to create process. Error: ";
+        std::wcout.flush();
         switch (error)
         {
         case ERROR_FILE_NOT_FOUND:
             std::wcout << L"File not found\n";
+            std::wcout.flush();
             response = L"Command not found\n";
             break;
         case ERROR_ACCESS_DENIED:
             std::wcout << L"Access denied\n";
+            std::wcout.flush();
             response = L"Failed to execute command\n";
             break;
         case ERROR_INVALID_PARAMETER:
             std::wcout << L"Invalid parameter\n";
+            std::wcout.flush();
             response = L"Command parameters are invalid\n";
             break;
 
         // ... other error cases ...
         default:
             std::wcout << L"Unknown error code\n";
+            std::wcout.flush();
             response = L"Failed to execute command\n";
             break;
         };
@@ -60,14 +65,16 @@ void processQuery(std::wstring &cmd, const std::wstring &outputFilePath, std::ws
     else
     {
         std::wcout << L"Process created with PID " << procInfo.dwProcessId << L"\n";
+        std::wcout.flush();
         WaitForSingleObject(procInfo.hProcess, INFINITE);
     }
     CloseHandle(tmpFileHandle);
     CloseHandle(procInfo.hProcess);
 }
 
-bool connectNamedPipeThreadFunc(HANDLE __pipeHandle)
+unsigned __stdcall connectNamedPipeThreadFunc(void *arg)
 {
+    HANDLE __pipeHandle = (HANDLE)arg;
     auto ret = ConnectNamedPipe(__pipeHandle, NULL);
     return (ret != 0);
 }
@@ -83,15 +90,24 @@ bool serverThreadFunc(HANDLE pipeHandle, const std::wstring &tmpFileName)
         BYTE buffer[MAX_BUFFER_SIZE];
         DWORD dwRead = 0;
         DWORD dwWritten = 0;
-        auto connectFuture = std::async(connectNamedPipeThreadFunc, pipeHandle);
         ULONG clientPID = 0;
-        auto ok = connectFuture.get();
-        GetNamedPipeClientProcessId(pipeHandle, &clientPID);
-        if (!ok || stopFlag)
+
+        auto connectionThreadHandle = (HANDLE)_beginthreadex(NULL, 0, connectNamedPipeThreadFunc, pipeHandle, 0, NULL);
+        while (!stopFlag && WaitForSingleObject(connectionThreadHandle, CONNECTION_WAIT_TIMEOUT) == WAIT_TIMEOUT)
         {
-            continue;
+            // do nothing
+            std::wcout << L"A thread is waiting for connection. stopFlag = " << stopFlag << L"\n";
+            std::wcout.flush();
         }
-        std::wcout << "Successfully connected with process with PID " << clientPID << "\n";
+        // std::wcout << L"A thread successfully established a connection\n";
+        // std::wcout.flush();
+        if (!stopFlag)
+        {
+            GetNamedPipeClientProcessId(pipeHandle, &clientPID);
+            std::wcout << "Successfully connected with process with PID " << clientPID << "\n";
+            std::wcout.flush();
+        }
+
         while (!stopFlag && ReadFile(pipeHandle, buffer, sizeof(buffer) - 2, &dwRead, NULL))
         {
             std::wstring cmd = L"";
@@ -99,9 +115,12 @@ bool serverThreadFunc(HANDLE pipeHandle, const std::wstring &tmpFileName)
             str[dwRead / 2] = L'\0';
             cmd += std::wstring(str);
             std::wcout << L"Client process " << clientPID << L" queried: " << cmd << L"\n";
+            std::wcout.flush();
             if (cmd == L"quit")
             {
                 std::wcout << L"Client process " << clientPID << L" is leaving\n";
+                std::wcout.flush();
+                fflush(stdout);
                 // WriteFile(pipeHandle, &ln[0], (DWORD)ln.size() * 2, &dwWritten, NULL);
                 // continue;
             }
@@ -141,26 +160,55 @@ bool serverThreadFunc(HANDLE pipeHandle, const std::wstring &tmpFileName)
             WriteFile(pipeHandle, &endS[0], (DWORD)endS.size() * 2, &dwWritten, NULL);
             FlushFileBuffers(pipeHandle);
         }
-        std::wcout << "Successfully disconnected with process with PID " << clientPID << "\n";
-        FlushFileBuffers(pipeHandle);
-        DisconnectNamedPipe(pipeHandle);
+        if (!stopFlag)
+        {
+            std::wcout << "Successfully disconnected with process with PID " << clientPID << "\n";
+            std::wcout.flush();
+            FlushFileBuffers(pipeHandle);
+            DisconnectNamedPipe(pipeHandle);
+        }
+        ULONG connectionThreadExitCode;
+        if (connectionThreadHandle != NULL)
+        {
+            GetExitCodeThread(connectionThreadHandle, &connectionThreadExitCode);
+            if (connectionThreadExitCode == STILL_ACTIVE)
+            {
+                auto pseudoClientPipeHandle = CreateFile(
+                    L"\\\\.\\pipe\\cmdPipe",
+                    GENERIC_READ | GENERIC_WRITE,
+                    0,
+                    NULL,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    NULL);
+                if (pseudoClientPipeHandle == INVALID_HANDLE_VALUE)
+                    CloseHandle(pseudoClientPipeHandle);
+                WaitForSingleObject(connectionThreadHandle, INFINITE);
+            }
+            std::wcout << "A thread has terminated\n";
+            std::wcout.flush();
+        }
     }
+
     return 1;
 }
 
 int wmain(int argc, LPWSTR argv[])
 {
     _setmode(_fileno(stdout), _O_WTEXT);
+    freopen(".\\Logs\\NPServer.log", "w", stdout);
     std::wstring pipeName = L"\\\\.\\pipe\\cmdPipe";
     std::future<bool> serverFutures[MAX_CLIENTS];
     HANDLE threadPipeHandles[MAX_CLIENTS];
     WCHAR tmpFileName[MAX_CLIENTS][MAX_PATH];
     CreateDirectoryW(L".\\Temp", NULL);
     std::wcout << L"Server is ready\n";
+    std::wcout << L"Pipe name" << pipeName << L"\n";
+    std::wcout.flush();
     for (int i = 0; i < MAX_CLIENTS; ++i)
     {
         GetTempFileNameW(L".\\Temp", L"out", 0, tmpFileName[i]);
-        threadPipeHandles[i] = CreateNamedPipe(
+        threadPipeHandles[i] = CreateNamedPipeW(
             &pipeName[0],
             PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
@@ -176,8 +224,11 @@ int wmain(int argc, LPWSTR argv[])
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
         serverFutures[i].get();
+        std::wcout << L"Thread " << i << L" successfully exited\n";
+        std::wcout.flush();
     }
     std::wcout << "Server has shut down";
+    std::wcout.flush();
 
     for (int i = 0; i < MAX_CLIENTS; i++)
     {

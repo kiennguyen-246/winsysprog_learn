@@ -13,7 +13,7 @@ int wmain(int argc, LPWSTR argv[])
     _setmode(_fileno(stdout), _O_WTEXT);
     std::wstring pipeName = L"\\\\.\\pipe\\cmdPipe";
     bool quitFlag = 0;
-
+    std::wcout << L"Pipe name" << pipeName << L"\n";
     HANDLE pipeHandle = INVALID_HANDLE_VALUE;
     while (pipeHandle == INVALID_HANDLE_VALUE)
     {
@@ -27,6 +27,17 @@ int wmain(int argc, LPWSTR argv[])
             OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL,
             NULL);
+        auto error = GetLastError();
+        switch(error) {
+            case ERROR_FILE_NOT_FOUND:
+                std::wcout << "Cannot find the pipe name.\n";
+                break;
+            case ERROR_ACCESS_DENIED:
+                std::wcout << "Cannot access the pipes.\n";
+                break;
+            default:
+                break;
+        }
     }
     DWORD npMode = PIPE_READMODE_MESSAGE | PIPE_WAIT;
     SetNamedPipeHandleState(pipeHandle, &npMode, NULL, NULL);

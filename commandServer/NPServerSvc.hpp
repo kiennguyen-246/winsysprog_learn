@@ -15,12 +15,13 @@ const int MAX_RETRIES = 60;
 const int MAX_CLIENTS = 3;
 
 static bool shutdownFlag = false, pauseFlag = false;
+static int eventId = 0;
 static SERVICE_STATUS svcStatus;
 static SERVICE_STATUS_HANDLE svcStatusHandle;
 
 static std::wstring svcName = L"NPServerSvc";
-static std::wstring logFileName = L".\\Logs\\NPServerSvc.log";
-static std::wofstream fo;
+static std::wstring logFileName = L"C:\\Users\\kiennd19\\Documents\\code\\winsysprog_learn\\commandServer\\Logs\\NPServerSvc.log";
+static std::wofstream logFo;
 
 void WINAPI svcMain(int argc, LPWSTR argv[]);
 int svcSpecific(int argc, LPWSTR argv[]);
