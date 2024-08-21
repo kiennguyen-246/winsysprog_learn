@@ -9,6 +9,5 @@
  */
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath)
 {
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    
+    return STATUS_SUCCESS;
 }
