@@ -21,10 +21,10 @@
 
 /**
 * Check if the string is terminated (end with a '\0')
-* 
+*
 * @param pStr Pointer to the string
 * @param uiStrLen Length of the string
-* 
+*
 * @return TRUE if the string is terminated
 */
 BOOLEAN isStringTerminated(PCHAR pStr, unsigned uiStrLen) {
@@ -89,21 +89,21 @@ NTSTATUS write(PDRIVER_OBJECT pDriverObject, PIRP pIrp) {
 #else
 #ifdef __USE_BUFFERED__
 	NTSTATUS NtStatus = STATUS_SUCCESS;
-	PIO_STACK_LOCATION pIoStackIrp = NULL;
-	PCHAR pWriteDataBuffer;
+	//PIO_STACK_LOCATION pIoStackIrp = NULL;
+	//PCHAR pWriteDataBuffer;
 
 	DbgPrint("write() Called. Mode: Buffered I/O \r\n");
 
-	pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
+	//pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
 
-	if (pIoStackIrp) {
-		pWriteDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
-		if (pWriteDataBuffer) {
-			if (isStringTerminated(pWriteDataBuffer, pIoStackIrp->Parameters.Write.Length)) {
-				DbgPrint(pWriteDataBuffer);
-			}
-		}
-	}
+	//if (pIoStackIrp) {
+	//	pWriteDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
+	//	if (pWriteDataBuffer) {
+	//		if (isStringTerminated(pWriteDataBuffer, pIoStackIrp->Parameters.Write.Length)) {
+	//			DbgPrint(pWriteDataBuffer);
+	//		}
+	//	}
+	//}
 	return NtStatus;
 #else
 
@@ -122,7 +122,7 @@ NTSTATUS unload(PDRIVER_OBJECT pDriverObject) {
 	DbgPrint("unload() Called\n");
 
 	//Delete the symbolic link created in DriverEntry()
-	RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\Example");
+	RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\HelloWorldKMDF2");
 	IoDeleteSymbolicLink(&usDosDeviceName);
 
 	//Delete the device
@@ -144,13 +144,14 @@ NTSTATUS DriverEntry(
 	PDEVICE_OBJECT pDeviceObject = NULL;
 	UNICODE_STRING usDriverName, usDosDeviceName;
 
-	//Printing to the debug window
+	//Printing to the DebugView window
 	DbgPrint("DriverEntry called\n");
+	DbgPrint("(yes it is definitely called)\n");
 
 	//Init unicode strings (same as strcat/wcscat)
 	//Note that UNICODE_STRINGs do not have \0 at the end
-	RtlInitUnicodeString(&usDriverName, L"\\Device\\Example");
-	RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\Example");
+	RtlInitUnicodeString(&usDriverName, L"\\Device\\HelloWorldKMDF2");
+	RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevices\\HelloWorldKMDF2");
 
 	//Create the device driver
 	NtStatus = IoCreateDevice(
@@ -181,4 +182,6 @@ NTSTATUS DriverEntry(
 
 	//Create a symbolic link between DOS device name and NT device name
 	IoCreateSymbolicLink(&usDosDeviceName, &usDriverName);
+
+	return NtStatus;
 }
