@@ -1,5 +1,6 @@
-#include <ntddk.h>
-#include <wdf.h>
+#include <wdm.h>
+
+#define DbgPrint(x, ...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, x, __VA_ARGS__)
 
 //#define __USE_DIRECT__
 #define __USE_BUFFERED__
@@ -69,14 +70,55 @@ NTSTATUS ioControl(PDRIVER_OBJECT pDriverObject) {
 	return NtStatus;
 }
 
-NTSTATUS read(PDRIVER_OBJECT pDriverObject) {
-	NTSTATUS NtStatus = STATUS_SUCCESS;
+
+/**
+* Communicating with the user mode ReadFile() function
+*
+* Supports 3 different input method: direct I/O, buffered I/O, neither
+*
+* @param pDriverObject Pointer to the current driver object
+* @param pIrp Pointer to the IRP structure
+*/
+NTSTATUS read(PDRIVER_OBJECT pDriverObject, PIRP pIrp) {
+#ifdef __USE_DIRECT__
+
+#else
+#ifdef __USE_BUFFERED__
+	NTSTATUS NtStatus = STATUS_BUFFER_TOO_SMALL;
+	PIO_STACK_LOCATION pIoStackIrp = NULL;
+	PCHAR pReturnData = "Hello from the kernel";
+	UINT32 dwDataSize = sizeof("Hello from the kernel");
+	UINT32 dwDataRead = 0;
+	PCHAR pReadDataBuffer;
+
 	DbgPrint("read() Called.\r\n");
+
+	pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
+
+	if (pIoStackIrp && pIrp->MdlAddress) {
+		pReadDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
+		if (pReadDataBuffer && pIoStackIrp->Parameters.Read.Length >= dwDataSize) {
+			RtlCopyMemory(pReadDataBuffer, pReturnData, dwDataSize);
+			dwDataRead = dwDataSize;
+			NtStatus = STATUS_SUCCESS;
+		}
+	}
+
+	pIrp->IoStatus.Status = NtStatus;
+	pIrp->IoStatus.Information = dwDataRead;
+
+	//Priority boost to make the thread waiting for this IRP to complete
+	IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+
 	return NtStatus;
+#else
+
+#endif //__USE_BUFFERED__
+#endif //__USE_DIRECT__
 }
 
 /**
-* Communicating with the user mode CreateFile() function
+* Communicating with the user mode WriteFile() function
 *
 * Supports 3 different input method: direct I/O, buffered I/O, neither
 *
@@ -89,21 +131,21 @@ NTSTATUS write(PDRIVER_OBJECT pDriverObject, PIRP pIrp) {
 #else
 #ifdef __USE_BUFFERED__
 	NTSTATUS NtStatus = STATUS_SUCCESS;
-	//PIO_STACK_LOCATION pIoStackIrp = NULL;
-	//PCHAR pWriteDataBuffer;
+	PIO_STACK_LOCATION pIoStackIrp = NULL;
+	PCHAR pWriteDataBuffer;
 
 	DbgPrint("write() Called. Mode: Buffered I/O \r\n");
 
-	//pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
+	pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
 
-	//if (pIoStackIrp) {
-	//	pWriteDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
-	//	if (pWriteDataBuffer) {
-	//		if (isStringTerminated(pWriteDataBuffer, pIoStackIrp->Parameters.Write.Length)) {
-	//			DbgPrint(pWriteDataBuffer);
-	//		}
-	//	}
-	//}
+	if (pIoStackIrp) {
+		pWriteDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
+		if (pWriteDataBuffer) {
+			if (isStringTerminated(pWriteDataBuffer, pIoStackIrp->Parameters.Write.Length)) {
+				DbgPrint(pWriteDataBuffer);
+			}
+		}
+	}
 	return NtStatus;
 #else
 
@@ -117,16 +159,18 @@ NTSTATUS write(PDRIVER_OBJECT pDriverObject, PIRP pIrp) {
 * @param pDriverObject Pointer to the current driver object
 */
 NTSTATUS unload(PDRIVER_OBJECT pDriverObject) {
+	NTSTATUS NtStatus = STATUS_SUCCESS;
 	UNICODE_STRING usDosDeviceName;
 
 	DbgPrint("unload() Called\n");
 
 	//Delete the symbolic link created in DriverEntry()
 	RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\HelloWorldKMDF2");
-	IoDeleteSymbolicLink(&usDosDeviceName);
+	NtStatus = IoDeleteSymbolicLink(&usDosDeviceName);
 
 	//Delete the device
 	IoDeleteDevice(pDriverObject->DeviceObject);
+	return NtStatus;
 }
 
 /**
@@ -146,7 +190,6 @@ NTSTATUS DriverEntry(
 
 	//Printing to the DebugView window
 	DbgPrint("DriverEntry called\n");
-	DbgPrint("(yes it is definitely called)\n");
 
 	//Init unicode strings (same as strcat/wcscat)
 	//Note that UNICODE_STRINGs do not have \0 at the end
@@ -163,6 +206,10 @@ NTSTATUS DriverEntry(
 		FALSE,
 		&pDeviceObject
 	);
+	if (NtStatus != STATUS_SUCCESS) {
+		DbgPrint("IoCreateDevice failed. Exitcode 0x%08x\n", NtStatus);
+		//return NtStatus;
+	}
 
 	//Define major functions used to communicate with the user mode application
 	for (uiIndex = 0; uiIndex < IRP_MJ_MAXIMUM_FUNCTION; ++uiIndex) {
@@ -181,7 +228,12 @@ NTSTATUS DriverEntry(
 	pDeviceObject->Flags &= (~DO_DEVICE_INITIALIZING);	//remove the flag used to tell the IO manager that the device is initialized
 
 	//Create a symbolic link between DOS device name and NT device name
-	IoCreateSymbolicLink(&usDosDeviceName, &usDriverName);
+	NtStatus = IoCreateSymbolicLink(&usDosDeviceName, &usDriverName);
+	if (NtStatus != STATUS_SUCCESS) {
+		DbgPrint("IoCreateSymbolicLink failed. Exitcode 0x%08x\n", NtStatus);
+		//return NtStatus;
+	}
 
 	return NtStatus;
+	//return STATUS_SUCCESS;
 }

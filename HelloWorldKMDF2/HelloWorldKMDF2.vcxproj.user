@@ -19,7 +19,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoveDriver>True</RemoveDriver>
-    <InstallMode>HardwareId</InstallMode>
+    <InstallMode>None</InstallMode>
     <HardwareIdString>Root\HelloWorldKMDF2</HardwareIdString>
     <CommandLine />
     <ScriptPath>C:\Program Files (x86)\Windows Kits\10\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
