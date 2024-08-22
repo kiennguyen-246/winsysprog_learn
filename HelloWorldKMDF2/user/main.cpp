@@ -49,17 +49,57 @@ int wmain(int argc, LPWSTR argv[])
 
     HANDLE hFile;
     DWORD dwReturn;
+    
+    std::wcout << L"Ready to make your screen blue?\n";
+    getchar();
 
-    hFile = CreateFile(L"\\\\.\\HelloWorldKMDF2", 
+    hFile = CreateFile(L"\\Device\\HelloWorldKMDF2", 
             GENERIC_READ | GENERIC_WRITE, 0, NULL, 
             OPEN_EXISTING, 0, NULL);
+    std::wcout << L"Called CreateFile() successfull\n";
+    getchar();
 
-    if(hFile)
+    // if(hFile)
+    // {
+    //     std::wcout << L"Successfully created handle for file in the device\n";
+    //     WriteFile(hFile, L"Hello from user mode!", 
+    //               sizeof(L"Hello from user mode!"), &dwReturn, NULL); 
+    //     std::wcout << L"Successfully write something to the file\n";
+    //     getchar();
+    //     CloseHandle(hFile);
+    // }
+    if(hFile != INVALID_HANDLE_VALUE)
     {
-        WriteFile(hFile, L"Hello from user mode!", 
-                  sizeof(L"Hello from user mode!"), &dwReturn, NULL); 
+        std::wcout << L"Successfully created handle for file in the device\n";
+        BYTE buffer[1024];
+        DWORD dwRead = 0;
+        while (ReadFile(hFile, buffer, sizeof(buffer) - 2, &dwRead, NULL))
+        {
+            LPWSTR str = (LPWSTR)buffer;
+            str[dwRead / 2] = L'\0';
+            if (str[dwRead / 2 - 1] != L'\n')
+            {
+                break;
+            }
+            std::wcout << std::wstring(str);
+        }
+        getchar();
         CloseHandle(hFile);
+    } else {
+        auto error = GetLastError();
+        switch(error) {
+            case ERROR_FILE_NOT_FOUND:
+                std::wcout << L"Cannot find the file.\n";
+                break;
+            case ERROR_ACCESS_DENIED:
+                std::wcout << L"Cannot access the file.\n";
+                break;
+            default:
+                std::wcout << L"GetLastError() returns " << error << L"\n";
+                break;
+        }
     }
+    
 
     return 0;
 }
