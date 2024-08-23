@@ -184,7 +184,7 @@ VOID __unload(PDRIVER_OBJECT pDriverObject) {
   DbgPrint("unload() Called\n");
 
   // Delete the symbolic link created in DriverEntry()
-  RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\HelloWorldKMDF2");
+  RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevice\\ExampleDrv");
   IoDeleteSymbolicLink(&usDosDeviceName);
 
   // Delete the device
@@ -210,8 +210,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
 
   // Init unicode strings (same as strcat/wcscat)
   // Note that UNICODE_STRINGs do not have \0 at the end
-  RtlInitUnicodeString(&usDriverName, L"\\Device\\HelloWorldKMDF2");
-  RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevices\\HelloWorldKMDF2");
+  RtlInitUnicodeString(&usDriverName, L"\\Device\\ExampleDrv");
+  RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevices\\ExampleDrv");
 
   // Create the device driver
   NtStatus =
@@ -243,7 +243,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
 
     // Create a symbolic link between DOS device name and NT device name
     IoCreateSymbolicLink(&usDosDeviceName, &usDriverName);
-
   }
 
   return NtStatus;
