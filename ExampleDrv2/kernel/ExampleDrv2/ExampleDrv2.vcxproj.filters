@@ -19,13 +19,24 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="HelloWorldKMDF2.inf">
+    <Inf Include="ExampleDrv2.inf">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Driver.c">
+    <ClCompile Include="entry.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="drvFunc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\public\public.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
