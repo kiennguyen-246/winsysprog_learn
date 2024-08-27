@@ -32,4 +32,46 @@ NTSTATUS handleWriteFile(PDEVICE_OBJECT pDeviceObject, PIRP pIrp);
 #pragma alloc_text(PAGE, handleDeviceIoControl)
 #pragma alloc_text(PAGE, handleCloseFile)
 
+// This macro is initialized backwards, so the name should be 'Exp '
+#define EXAMPLE_POOL_TAG ' pxE'
+#define MIN(x, y) (x <= y ? x : y)
+
+typedef struct _EXAMPLE_LIST {
+  // Pointer to the next structure in the list
+  struct _EXAMPLE_LIST *pNext;
+
+  // Name of the pipe
+  UNICODE_STRING usPipeName;
+
+  // The wchar* version of the pipe name
+  WCHAR pwcPipeName[256];
+
+  // Current number of reference to this pipe.
+  // One is added when a new pipe with the same name is created
+  // One is subtracted when a pipe is released
+  UINT32 uiRefCount;
+
+  // Starting index of the written data in the circular buffer
+  // This value may only be modified by read operations
+  UINT32 uiStartIndex;
+
+  // Ending index of the written data in the circular buffer
+  // This value may only be modified by write operations
+  UINT32 uiStopIndex;
+
+  // Kernel mutex for threads using the current pipe context
+  KMUTEX kmInstanceBufferMutex;
+
+  // The circular data buffer
+  CHAR pcCircularBuffer[2000];
+} EXAMPLE_LIST, *PEXAMPLE_LIST;
+
+// The user-defined driver context
+typedef struct _EXAMPLE_DEVICE_CONTEXT {
+  // List of pipe context instances
+  PEXAMPLE_LIST pExampleList;
+
+  // Kernel mutex for all pipe contexts
+  KMUTEX kmListMutex;
+} EXAMPLE_DEVICE_CONTEXT, *PEXAMPLE_DEVICE_CONTEXT;
 #endif

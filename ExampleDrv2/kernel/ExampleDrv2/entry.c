@@ -20,6 +20,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
   UINT32 uiIndex = 0;
   PDEVICE_OBJECT pDeviceObject = NULL;
   UNICODE_STRING usDriverName, usDosDeviceName;
+  PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext;
 
   // Printing to the DebugView window
   DbgPrint("DriverEntry called\n");
@@ -30,9 +31,9 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
   RtlInitUnicodeString(&usDosDeviceName, L"\\DosDevices\\ExampleDrv");
 
   // Create the device driver
-  NtStatus =
-      IoCreateDevice(pDriverObject, 0, &usDriverName, FILE_DEVICE_UNKNOWN,
-                     FILE_DEVICE_SECURE_OPEN, FALSE, &pDeviceObject);
+  NtStatus = IoCreateDevice(pDriverObject, sizeof(EXAMPLE_DEVICE_CONTEXT),
+                            &usDriverName, FILE_DEVICE_UNKNOWN,
+                            FILE_DEVICE_SECURE_OPEN, FALSE, &pDeviceObject);
   if (NtStatus != STATUS_SUCCESS) {
     DbgPrint("IoCreateDevice failed. Exitcode 0x%08x\n", NtStatus);
     // return NtStatus;
@@ -51,7 +52,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
     pDriverObject->MajorFunction[IRP_MJ_READ] = handleReadFile;
     pDriverObject->MajorFunction[IRP_MJ_WRITE] = handleWriteFile;
 
+    // The unload function must always be included
     pDriverObject->DriverUnload = driverUnload;
+
+    pExampleDeviceContext =
+        (PEXAMPLE_DEVICE_CONTEXT)pDeviceObject->DeviceExtension;
+    KeInitializeMutex(&pExampleDeviceContext->kmListMutex, 0);
+    pExampleDeviceContext->pExampleList = NULL;
 
     pDeviceObject->Flags |= IO_TYPE;  // type of IO
     pDeviceObject->Flags &=
