@@ -68,48 +68,51 @@ int wmain(int argc, LPWSTR argv[])
     // }
     if (hFile != INVALID_HANDLE_VALUE)
     {
-        // std::wcout << L"Successfully created handle for file in the device\n";
-        // WriteFile(hFile, L"Hello from user mode!",
-        //         sizeof(L"Hello from user mode!"), &dwReturn, NULL);
-        // std::wcout << L"Successfully write something to the file\n";
-        // getchar();
-        // CloseHandle(hFile);
+        if (wcscmp(argv[1], L"write") == 0) {
+            DWORD dwWrite = 0;
+            std::wcout << L"Successfully created handle for file in the device\n";
+            WriteFile(hFile, L"Hello from user mode!",
+                    sizeof(L"Hello from user mode!"), &dwWrite, NULL);
+            std::wcout << L"Successfully write something to the file\n";
+            getchar();
+            CloseHandle(hFile);
+        }
+        
+        if (wcscmp(argv[1], L"read") == 0) {
+            std::wcout << L"Successfully created handle for file in the device\n";
+            BYTE buffer[1024];
+            DWORD dwRead = 0;
+            ReadFile(hFile, buffer, sizeof(buffer) - 2, &dwRead, NULL);
+            LPWSTR str = (LPWSTR)buffer;
+            str[dwRead / 2] = L'\0';
+            std::wcout << std::wstring(str);
+            getchar();
+            CloseHandle(hFile);
+        }
 
-        // std::wcout << L"Successfully created handle for file in the device\n";
-        // BYTE buffer[1024];
-        // DWORD dwRead = 0;
-        // while (ReadFile(hFile, buffer, sizeof(buffer) - 2, &dwRead, NULL))
-        // {
-        //     LPWSTR str = (LPWSTR)buffer;
-        //     str[dwRead / 2] = L'\0';
-        //     if (str[dwRead / 2 - 1] != L'\n')
-        //     {
-        //         break;
-        //     }
-        //     std::wcout << std::wstring(str);
-        // }
-        // getchar();
-        // CloseHandle(hFile);
+        if (wcscmp(argv[1], L"ioctl") == 0) {
+            std::wcout << L"Successfully created handle for file in the device\n";
+            BYTE inBuffer[1024], outBuffer[1024];
+            DWORD dwRead = 0;
+            ZeroMemory(inBuffer, sizeof(inBuffer));
+            ZeroMemory(outBuffer, sizeof(outBuffer));
+            WCHAR lpwsMsg[] = L"** Hello from User Mode Buffered I/O";
+            DWORD dwMsgSize = wcslen(lpwsMsg) * sizeof(WCHAR);
+            memcpy(inBuffer, lpwsMsg, dwMsgSize);
+            DeviceIoControl(hFile,
+                            IOCTL_SAMPLE_BUFFERED_IO,
+                            inBuffer,
+                            sizeof(inBuffer),
+                            outBuffer,
+                            sizeof(outBuffer),
+                            &dwRead,
+                            NULL);
+            std::wcout << std::wstring((LPWSTR)outBuffer);
+            getchar();
+            CloseHandle(hFile);
+        }
 
-        std::wcout << L"Successfully created handle for file in the device\n";
-        BYTE inBuffer[1024], outBuffer[1024];
-        DWORD dwRead = 0;
-        ZeroMemory(inBuffer, sizeof(inBuffer));
-        ZeroMemory(outBuffer, sizeof(outBuffer));
-        WCHAR lpwsMsg[] = L"** Hello from User Mode Buffered I/O";
-        DWORD dwMsgSize = wcslen(lpwsMsg) * sizeof(WCHAR);
-        memcpy(inBuffer, lpwsMsg, dwMsgSize);
-        DeviceIoControl(hFile,
-                        IOCTL_SAMPLE_BUFFERED_IO,
-                        inBuffer,
-                        sizeof(inBuffer),
-                        outBuffer,
-                        sizeof(outBuffer),
-                        &dwRead,
-                        NULL);
-        std::wcout << std::wstring((LPWSTR)outBuffer);
-        getchar();
-        CloseHandle(hFile);
+        
     }
     else
     {

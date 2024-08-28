@@ -111,36 +111,36 @@ NTSTATUS releasePipeContext(PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext,
       if (pExampleList == pExampleListFromIrp) {
         bNotFound = FALSE;
         pExampleListFromIrp->uiRefCount--;
-        DbgPrint("A reference to pipe %ws is removed\n",
-                 &pExampleList->pwcPipeName);
+        DbgPrint("A reference to pipe %wZ is removed\n",
+                 &pExampleList->usPipeName);
 
         if (pExampleListFromIrp->uiRefCount == 0) {
           DbgPrint(
-              "The %ws pipe context instance will be deleted as no reference is "
+              "The %wZ pipe context instance will be deleted as no reference is "
               "left\n",
-              &pExampleList->pwcPipeName);
+              &pExampleList->usPipeName);
           pExampleDeviceContext->pExampleList = pExampleList->pNext;
           ExFreePool(pExampleListFromIrp);
-          DbgPrint("Delete %ws pipe context instance successful\n",
-                   &pExampleList->pwcPipeName);
+          DbgPrint("Delete %wZ pipe context instance successful\n",
+                   &pExampleList->usPipeName);
         }
       } else {
         do {
           if (pExampleListFromIrp == pExampleList->pNext) {
             bNotFound = FALSE;
             pExampleListFromIrp->uiRefCount--;
-            DbgPrint("A reference to pipe %ws is removed\n",
-                     &pExampleList->pwcPipeName);
+            DbgPrint("A reference to pipe %wZ is removed\n",
+                     &pExampleList->usPipeName);
 
             if (pExampleListFromIrp->uiRefCount == 0) {
               DbgPrint(
-                  "The %ws pipe context instance will be deleted as no "
+                  "The %wZ pipe context instance will be deleted as no "
                   "reference is left\n",
-                  &pExampleList->pwcPipeName);
+                  &pExampleList->usPipeName);
               pExampleDeviceContext->pExampleList = pExampleList->pNext;
               ExFreePool(pExampleListFromIrp);
-              DbgPrint("Delete %ws pipe context instance successful\n",
-                       &pExampleList->pwcPipeName);
+              DbgPrint("Delete %wZ pipe context instance successful\n",
+                       &pExampleList->usPipeName);
             }
 
             NtStatus = STATUS_SUCCESS;
@@ -153,8 +153,8 @@ NTSTATUS releasePipeContext(PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext,
 
     if (bNotFound) {
       DbgPrint(
-          "Release pipe %ws failed because no reference of the pipe was found\n",
-          &pExampleList->pwcPipeName);
+          "Release pipe %wZ failed because no reference of the pipe was found\n",
+          &pExampleList->usPipeName);
       NtStatus = STATUS_UNSUCCESSFUL;
     }
 
@@ -206,14 +206,14 @@ NTSTATUS handleCreateFile(PDEVICE_OBJECT pDeviceObject, PIRP pIrp) {
  */
 NTSTATUS createPipeContext(PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext,
                            PFILE_OBJECT pFileObject) {
-  NTSTATUS NtStatus = STATUS_SUCCESS;
+  NTSTATUS NtStatus = STATUS_UNSUCCESSFUL;
   PEXAMPLE_LIST pExampleList = NULL;
   BOOLEAN bNeedsToCreate = FALSE;
 
   DbgPrint("createPipeContext() called\n");
 
-  NtStatus = KeWaitForSingleObject(&pExampleDeviceContext->kmListMutex,
-                                   Executive, KernelMode, FALSE, NULL);
+  NtStatus = KeWaitForMutexObject(&pExampleDeviceContext->kmListMutex, Executive,
+                                  KernelMode, FALSE, NULL);
 
   if (NT_SUCCESS(NtStatus)) {
     pExampleList = pExampleDeviceContext->pExampleList;
@@ -239,11 +239,12 @@ NTSTATUS createPipeContext(PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext,
 
     if (bNeedsToCreate) {
       DbgPrint(
-          "Pipe %ws does not exist. A new pipe context instance will be "
+          "Pipe %wZ does not exist. A new pipe context instance will be "
           "created\n",
-          &pExampleList->pwcPipeName);
+          &pExampleList->usPipeName);
       pExampleList = (PEXAMPLE_LIST)ExAllocatePoolWithTag(
           NonPagedPool, sizeof(EXAMPLE_LIST), EXAMPLE_POOL_TAG);
+
       if (pExampleList) {
         pExampleList->pNext = pExampleDeviceContext->pExampleList;
         pExampleDeviceContext->pExampleList = pExampleList;
@@ -262,18 +263,21 @@ NTSTATUS createPipeContext(PEXAMPLE_DEVICE_CONTEXT pExampleDeviceContext,
 
         pFileObject->FsContext = (PVOID)pExampleList;
 
-        DbgPrint("Create pipe %ws successful\n", &pExampleList->pwcPipeName);
         NtStatus = STATUS_SUCCESS;
+
+        DbgPrint("Create pipe %wZ successful\n", &pExampleList->usPipeName);
       } else {
-        DbgPrint("Create pipe %ws failed due to insufficient resources\n",
-                 &pExampleList->pwcPipeName);
+        DbgPrint("Create pipe %wZ failed due to insufficient resources\n",
+                 &pExampleList->usPipeName);
         NtStatus = STATUS_INSUFFICIENT_RESOURCES;
       }
 
-      KeReleaseMutex(&pExampleDeviceContext->kmListMutex, FALSE);
+      
     } else {
-      DbgPrint("Added 1 reference of pipe %ws\n", &pExampleList->pwcPipeName);
+      DbgPrint("Added 1 reference of pipe %wZ\n", &pExampleList->usPipeName);
     }
+    DbgPrint("%Instance count: %i\n", pExampleList->uiRefCount);
+    KeReleaseMutex(&pExampleDeviceContext->kmListMutex, FALSE);
   }
   return NtStatus;
 }
@@ -442,6 +446,7 @@ NTSTATUS handleReadFile(PDEVICE_OBJECT pDeviceObject, PIRP pIrp) {
       if (readPipeContext((PEXAMPLE_LIST)pIoStackIrp->FileObject->FsContext,
                           pReadDataBuffer, pIoStackIrp->Parameters.Read.Length,
                           &uiDataRead)) {
+        DbgPrint("Data got from user mode buffer: %ws\n", pReadDataBuffer);
         NtStatus = STATUS_SUCCESS;
       }
     }
@@ -600,6 +605,7 @@ NTSTATUS handleWriteFile(PDEVICE_OBJECT pDeviceObject, PIRP pIrp) {
   if (pIoStackIrp) {
     pWriteDataBuffer = (PCHAR)pIrp->AssociatedIrp.SystemBuffer;
     if (pWriteDataBuffer) {
+      DbgPrint("Data got from user mode buffer: %ws\n", pWriteDataBuffer);
       if (writePipeContext((PEXAMPLE_LIST)pIoStackIrp->FileObject->FsContext,
                            pWriteDataBuffer,
                            pIoStackIrp->Parameters.Write.Length,
@@ -743,6 +749,7 @@ BOOLEAN writePipeContext(PEXAMPLE_LIST pExampleList, PCHAR pcData,
     DbgPrint("Start Index = %i Stop Index = %i Size Of Buffer = %i\n",
              pExampleList->uiStartIndex, pExampleList->uiStopIndex,
              sizeof(pExampleList->pcCircularBuffer));
+    DbgPrint("Buffer content %ws\n", (PWCHAR)pExampleList->pcCircularBuffer);
     KeReleaseMutex(&pExampleList->kmInstanceBufferMutex, FALSE);
   }
   return bIsDataWritten;
