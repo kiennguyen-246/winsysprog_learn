@@ -14,10 +14,10 @@ NTSTATUS DriverQueryTeardown(PCFLT_RELATED_OBJECTS FltObjects,
 
 const FLT_OPERATION_REGISTRATION fltOperations[] = {
     {IRP_MJ_CREATE, 0, mfltPreCreate, mfltPostCreate},
-    //{IRP_MJ_WRITE, 0, mfltPreCreate, mfltPostWrite},
-    //{IRP_MJ_READ, 0, mfltPreRead, mfltPostRead},
+    {IRP_MJ_WRITE, 0, mfltPreCreate, mfltPostWrite},
+    {IRP_MJ_READ, 0, mfltPreRead, mfltPostRead},
     //{IRP_MJ_NOT_S, 0, mfltPreCleanup, mfltPostCleanup},
-    //{IRP_MJ_CLOSE, 0, mfltPreClose, mfltPostClose},
+    {IRP_MJ_CLOSE, 0, mfltPreClose, mfltPostClose},
     {IRP_MJ_OPERATION_END}};
 
 const FLT_REGISTRATION fltRegistration = {sizeof(FLT_REGISTRATION),
