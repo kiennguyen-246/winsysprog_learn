@@ -3,6 +3,8 @@
 
 #include <fltkernel.h>
 
+#define DbgPrint(x, ...) DbgPrint("[MiniFilter]" x, __VA_ARGS__)
+
 typedef struct _MFLT_DATA {
   // The driver object
   PDRIVER_OBJECT pDriverObject;

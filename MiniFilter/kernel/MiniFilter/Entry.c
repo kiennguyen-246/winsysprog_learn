@@ -16,7 +16,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
   }
   DbgPrint("Register filter successful\n");
 
-  DbgBreakPoint();
+  //DbgBreakPoint();
 
   // Start filtering (Must unregister immediately if fail)
   ntStatus = FltStartFiltering(mfltData.pFilter);
