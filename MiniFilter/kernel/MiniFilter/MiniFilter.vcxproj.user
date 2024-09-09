@@ -8,7 +8,7 @@
     <ScriptPath>C:\Program Files (x86)\Windows Kits\10\Testing\Tests\Utilities\DefaultDriverPackageInstallationTask.dll</ScriptPath>
     <DbgengRemoteMachineName>DevelopmentComputer</DbgengRemoteMachineName>
     <DbgengKernelMachineName>DevelopmentComputer</DbgengKernelMachineName>
-    <DeployFiles />
+    <DeployFiles>C:\Users\kiennd19\Documents\code\winsysprog_learn\MiniFilter\user\MiniFilter\x64\Debug\MiniFilter.exe;</DeployFiles>
     <ScriptName>Microsoft.DriverKit.DefaultDriverPackageInstallationClass.PerformDefaultDriverPackageInstallation</ScriptName>
     <ScriptDeviceQuery />
     <EnableVerifier>True</EnableVerifier>

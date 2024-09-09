@@ -110,7 +110,14 @@
     <Inf Include="MiniFilter.inf" />
   </ItemGroup>
   <ItemGroup>
-    <FilesToPackage Include="$(TargetPath)" />
+    <FilesToPackage Include="C:\Users\kiennd19\Documents\code\winsysprog_learn\MiniFilter\kernel\x64\Debug\MiniFilter.sys">
+      <PackageRelativeDirectory>
+      </PackageRelativeDirectory>
+    </FilesToPackage>
+    <FilesToPackage Include="C:\Users\kiennd19\Documents\code\winsysprog_learn\MiniFilter\user\MiniFilter\x64\Release\MiniFilter.exe" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      <PackageRelativeDirectory>
+      </PackageRelativeDirectory>
+    </FilesToPackage>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Entry.c" />

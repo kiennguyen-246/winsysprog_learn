@@ -16,6 +16,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
   }
   DbgPrint("Register filter successful\n");
 
+
+
   //DbgBreakPoint();
 
   // Start filtering (Must unregister immediately if fail)
@@ -43,4 +45,24 @@ NTSTATUS DriverQueryTeardown(PCFLT_RELATED_OBJECTS FltObjects,
                              FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags) {
   DbgPrint("DriverQueryTeardown called\n");
   return STATUS_SUCCESS;
+}
+
+NTSTATUS comConnect(PFLT_PORT pClientPort, PVOID pServerPortCookie,
+    PVOID pConnectionContext, ULONG uiSizeOfContext,
+    PVOID* pConnectionCookie) {
+  FLT_ASSERT(mfltData.pClientPort == NULL);
+  mfltData.pClientPort = pClientPort;
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS comDisconnect(PVOID pConnectionCookie) {
+  FltCloseClientPort(mfltData.pFilter, mfltData.pClientPort);
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS comMessage(PVOID pConnectionCookie, PVOID pInputBuffer,
+    ULONG uiInputBufferSize, PVOID pOutputBuffer,
+    ULONG uiOutputBufferSize,
+    PULONG puiReturnOutputBufferLength) {
+
 }

@@ -7,12 +7,31 @@ FLT_PREOP_CALLBACK_STATUS mfltPreClose(PFLT_CALLBACK_DATA pCallbackData,
                                        PCFLT_RELATED_OBJECTS pFltObj,
                                        PVOID* pCompletionContext) {
   // DbgBreakPoint();
-  // DbgPrint("mfltPreClose called\n");
-  UNICODE_STRING usVolumeName;
-  ULONG ulVolumeNameBufferSize;
-  FltGetVolumeName(pFltObj->Volume, &usVolumeName, &ulVolumeNameBufferSize);
+  // DbgPrint("mfltPreCreate called\n");
+
   // DbgBreakPoint();
-  DbgPrint("Close file: %wZ%wZ\n", usVolumeName, pFltObj->FileObject->FileName);
+
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
+    UNICODE_STRING usVolumeName;
+    WCHAR pwcInitString[1024];
+    for (int i = 0; i < 1023; i++) {
+      pwcInitString[i] = L' ';
+    }
+    RtlInitUnicodeString(&usVolumeName, pwcInitString);
+    // DbgBreakPoint();
+    ULONG ulVolumeNameBufferSize;
+    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                       &ulVolumeNameBufferSize);
+    if (status == STATUS_SUCCESS) {
+      // DbgBreakPoint();
+      DbgPrint("Close file: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+    } else {
+      DbgBreakPoint();
+    }
+
+    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
+  }
 
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
@@ -40,7 +59,12 @@ FLT_PREOP_CALLBACK_STATUS mfltPreCreate(PFLT_CALLBACK_DATA pCallbackData,
 
   if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
     UNICODE_STRING usVolumeName;
-    RtlInitUnicodeString(&usVolumeName, L"");
+    WCHAR pwcInitString[1024];
+    for (int i = 0; i < 1023; i++) {
+      pwcInitString[i] = L' ';
+    }
+    RtlInitUnicodeString(&usVolumeName, pwcInitString);
+    //DbgBreakPoint();
     ULONG ulVolumeNameBufferSize;
     NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
                                        &ulVolumeNameBufferSize);
@@ -48,6 +72,8 @@ FLT_PREOP_CALLBACK_STATUS mfltPreCreate(PFLT_CALLBACK_DATA pCallbackData,
       // DbgBreakPoint();
       DbgPrint("Open file: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
+    } else {
+      DbgBreakPoint();
     }
 
     // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
@@ -69,13 +95,31 @@ FLT_PREOP_CALLBACK_STATUS mfltPreRead(PFLT_CALLBACK_DATA pCallbackData,
                                       PCFLT_RELATED_OBJECTS pFltObj,
                                       PVOID* pCompletionContext) {
   // DbgBreakPoint();
-  // DbgPrint("mfltPreRead called\n");
-  UNICODE_STRING usVolumeName;
-  ULONG ulVolumeNameBufferSize;
-  FltGetVolumeName(pFltObj->Volume, &usVolumeName, &ulVolumeNameBufferSize);
+  // DbgPrint("mfltPreCreate called\n");
+
   // DbgBreakPoint();
-  DbgPrint("Read on file: %wZ%wZ\n", usVolumeName,
-           pFltObj->FileObject->FileName);
+
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
+    UNICODE_STRING usVolumeName;
+    WCHAR pwcInitString[1024];
+    for (int i = 0; i < 1023; i++) {
+      pwcInitString[i] = L' ';
+    }
+    RtlInitUnicodeString(&usVolumeName, pwcInitString);
+    // DbgBreakPoint();
+    ULONG ulVolumeNameBufferSize;
+    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                       &ulVolumeNameBufferSize);
+    if (status == STATUS_SUCCESS) {
+      // DbgBreakPoint();
+      DbgPrint("Read on file: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+    } else {
+      DbgBreakPoint();
+    }
+
+    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
+  }
 
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
@@ -93,13 +137,31 @@ FLT_PREOP_CALLBACK_STATUS mfltPreWrite(PFLT_CALLBACK_DATA pCallbackData,
                                        PCFLT_RELATED_OBJECTS pFltObj,
                                        PVOID* pCompletionContext) {
   // DbgBreakPoint();
-  // DbgPrint("mfltPreWrite called\n");
-  UNICODE_STRING usVolumeName;
-  ULONG ulVolumeNameBufferSize;
-  FltGetVolumeName(pFltObj->Volume, &usVolumeName, &ulVolumeNameBufferSize);
+  // DbgPrint("mfltPreCreate called\n");
+
   // DbgBreakPoint();
-  DbgPrint("Write to file: %wZ%wZ\n", usVolumeName,
-           pFltObj->FileObject->FileName);
+
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
+    UNICODE_STRING usVolumeName;
+    WCHAR pwcInitString[1024];
+    for (int i = 0; i < 1023; i++) {
+      pwcInitString[i] = L' ';
+    }
+    RtlInitUnicodeString(&usVolumeName, pwcInitString);
+    // DbgBreakPoint();
+    ULONG ulVolumeNameBufferSize;
+    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                       &ulVolumeNameBufferSize);
+    if (status == STATUS_SUCCESS) {
+      // DbgBreakPoint();
+      DbgPrint("Write to file: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+    } else {
+      DbgBreakPoint();
+    }
+
+    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
+  }
 
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
