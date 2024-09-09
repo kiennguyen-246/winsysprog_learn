@@ -70,11 +70,11 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <IncludePath>C:\Users\kiennd19\Documents\code\winsysprog_learn\ExampleDrv2\public;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)..\..\..\public;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <IncludePath>C:\Users\kiennd19\Documents\code\winsysprog_learn\ExampleDrv2\public;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\a\Documents\MEGA\MEGAsync\code\using_files\winsysprog_learn\ExampleDrv2\public;C:\Users\kiennd19\Documents\code\winsysprog_learn\ExampleDrv2\public;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
