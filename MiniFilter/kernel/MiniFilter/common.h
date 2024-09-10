@@ -17,6 +17,10 @@ typedef struct _MFLT_DATA {
 
   // The client port. Only one user mode application is allowed at a time
   PFLT_PORT pClientPort;
+
+  //KSPIN_LOCK kslOutputBufferLock;
+
+  //LIST_ENTRY leOutputBufferList;
 } MFLT_DATA, *PMFLT_DATA;
 
 #endif  // COMMON_GUARD
