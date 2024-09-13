@@ -89,6 +89,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>$(DDK_LIB_PATH)\fltMgr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

@@ -130,7 +130,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ComPort.cpp" />
+    <ClCompile Include="FilterUser.cpp" />
     <ClCompile Include="MiniFilter.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ComPort.hpp" />
+    <ClInclude Include="FilterUser.hpp" />
+    <ClInclude Include="utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

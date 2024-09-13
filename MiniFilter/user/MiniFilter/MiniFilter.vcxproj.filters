@@ -18,5 +18,22 @@
     <ClCompile Include="MiniFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ComPort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FilterUser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ComPort.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FilterUser.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

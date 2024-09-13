@@ -44,11 +44,18 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
     return ntStatus;
   }
 
+  ntStatus = PsSetCreateProcessNotifyRoutineEx(mfltCreateProcessNotify, FALSE);
+  if (ntStatus != STATUS_SUCCESS) {
+    DbgPrint("Start CreateProcess notify routine failed 0x%08x\n", ntStatus);
+  } else {
+    DbgPrint("Start CreateProcess notify routine successfully\n", ntStatus);
+  }
+
   // Start filtering (Must unregister immediately if fail)
   ntStatus = FltStartFiltering(mfltData.pFilter);
   if (ntStatus != STATUS_SUCCESS) {
     DbgPrint("Start filtering failed 0x%08x\n", ntStatus);
-    FltCloseCommunicationPort(mfltData.pFilter);
+    FltCloseCommunicationPort(mfltData.pServerPort);
     FltUnregisterFilter(mfltData.pFilter);
     return ntStatus;
   }
@@ -59,6 +66,8 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
 
 NTSTATUS DriverUnload(FLT_FILTER_UNLOAD_FLAGS fltUnloadFlags) {
   DbgPrint("DriverUnload called\n");
+
+  PsSetCreateProcessNotifyRoutineEx(mfltCreateProcessNotify, TRUE);
 
   FltCloseCommunicationPort(mfltData.pServerPort);
 
@@ -85,17 +94,18 @@ NTSTATUS mfltComConnect(PFLT_PORT pClientPort, PVOID pServerPortCookie,
 
 NTSTATUS mfltComDisconnect(PVOID pConnectionCookie) {
   DbgPrint("mfltComDisconnect called\n");
-  FltCloseClientPort(mfltData.pFilter, mfltData.pClientPort);
+  mfltData.bIsComPortClosed = TRUE;
+  FltCloseClientPort(mfltData.pFilter, &mfltData.pClientPort);
   return STATUS_SUCCESS;
 }
 
 // NTSTATUS comMessage(PVOID pConnectionCookie, PVOID pInputBuffer,
-//                     ULONG uiInputBufferSize, PVOID pOutputBuffer,
+//                     ULONG uiInputBufferSize, PVOID pcOutputBuffer,
 //                     ULONG uiOutputBufferSize,
 //                     PULONG puiReturnOutputBufferLength) {
 //   NTSTATUS ntStatus = STATUS_SUCCESS;
 //   if (pInputBuffer != NULL) {
-//     if (pOutputBuffer != NULL && uiOutputBufferSize != 0) {
+//     if (pcOutputBuffer != NULL && uiOutputBufferSize != 0) {
 //       PLIST_ENTRY pleCurNode;
 //       ULONG ulBytesWritten;
 //       NTSTATUS ntStatus = STATUS_SUCCESS;
@@ -128,28 +138,41 @@ FLT_PREOP_CALLBACK_STATUS mfltPreClose(PFLT_CALLBACK_DATA pCallbackData,
 
   // DbgBreakPoint();
 
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
-    UNICODE_STRING usVolumeName;
-    WCHAR pwcInitString[1024];
-    for (int i = 0; i < 1023; i++) {
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
+      pFltObj->FileObject->FileName.Buffer != NULL) {
+    NTSTATUS ntStatus = STATUS_SUCCESS;
+    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+    WCHAR pwcInitString[MAX_BUFFER_SIZE];
+    ULONG ulVolumeNameBufferSize;
+    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
       pwcInitString[i] = L' ';
     }
     RtlInitUnicodeString(&usVolumeName, pwcInitString);
     // DbgBreakPoint();
-    ULONG ulVolumeNameBufferSize;
-    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                       &ulVolumeNameBufferSize);
-    if (status == STATUS_SUCCESS) {
+
+    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                &ulVolumeNameBufferSize);
+    if (ntStatus == STATUS_SUCCESS) {
       // DbgBreakPoint();
-      DbgPrint("Close file: %wZ%wZ\n", usVolumeName,
+      DbgPrint("File closed: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
+      if (mfltData.pClientPort != NULL) {
+        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File closed: ";
+        wcscat(wcComMsg, usVolumeName.Buffer);
+        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
+        wcscat(wcComMsg, L"\n");
+        if (!mfltData.bIsComPortClosed) {
+          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
+          if (ntStatus != STATUS_SUCCESS) {
+            DbgPrint("Send message failed 0x%08x\n", ntStatus);
+          }
+        }
+      }
     } else {
       DbgBreakPoint();
     }
-
-    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
   }
-
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
@@ -174,32 +197,35 @@ FLT_PREOP_CALLBACK_STATUS mfltPreCreate(PFLT_CALLBACK_DATA pCallbackData,
 
   // DbgBreakPoint();
 
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
+      pFltObj->FileObject->FileName.Buffer != NULL) {
     NTSTATUS ntStatus = STATUS_SUCCESS;
-    UNICODE_STRING usVolumeName;
-    WCHAR pwcInitString[1024];
-    for (int i = 0; i < 1023; i++) {
+    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+    WCHAR pwcInitString[MAX_BUFFER_SIZE];
+    ULONG ulVolumeNameBufferSize;
+    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
       pwcInitString[i] = L' ';
     }
     RtlInitUnicodeString(&usVolumeName, pwcInitString);
     // DbgBreakPoint();
-    ULONG ulVolumeNameBufferSize;
-    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                       &ulVolumeNameBufferSize);
-    if (status == STATUS_SUCCESS) {
+
+    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                &ulVolumeNameBufferSize);
+    if (ntStatus == STATUS_SUCCESS) {
       // DbgBreakPoint();
-      DbgPrint("Open file: %wZ%wZ\n", usVolumeName,
+      DbgPrint("File opened: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
       if (mfltData.pClientPort != NULL) {
-        WCHAR wcComMsg[1024] = L"Open file: ";
+        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File opened: ";
         wcscat(wcComMsg, usVolumeName.Buffer);
         wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
         wcscat(wcComMsg, L"\n");
-        DbgBreakPoint();
-        ntStatus = FltSendMessage(mfltData.pFilter, mfltData.pClientPort,
-                                  wcComMsg, 1024, NULL, 0, NULL);
-        if (ntStatus != STATUS_SUCCESS) {
-          DbgPrint("Send message failed 0x%08x\n", ntStatus);
+        if (!mfltData.bIsComPortClosed) {
+          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
+          if (ntStatus != STATUS_SUCCESS) {
+            DbgPrint("Send message failed 0x%08x\n", ntStatus);
+          }
         }
       }
     } else {
@@ -229,28 +255,41 @@ FLT_PREOP_CALLBACK_STATUS mfltPreRead(PFLT_CALLBACK_DATA pCallbackData,
 
   // DbgBreakPoint();
 
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
-    UNICODE_STRING usVolumeName;
-    WCHAR pwcInitString[1024];
-    for (int i = 0; i < 1023; i++) {
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
+      pFltObj->FileObject->FileName.Buffer != NULL) {
+    NTSTATUS ntStatus = STATUS_SUCCESS;
+    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+    WCHAR pwcInitString[MAX_BUFFER_SIZE];
+    ULONG ulVolumeNameBufferSize;
+    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
       pwcInitString[i] = L' ';
     }
     RtlInitUnicodeString(&usVolumeName, pwcInitString);
     // DbgBreakPoint();
-    ULONG ulVolumeNameBufferSize;
-    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                       &ulVolumeNameBufferSize);
-    if (status == STATUS_SUCCESS) {
+
+    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                &ulVolumeNameBufferSize);
+    if (ntStatus == STATUS_SUCCESS) {
       // DbgBreakPoint();
-      DbgPrint("Read on file: %wZ%wZ\n", usVolumeName,
+      DbgPrint("File read: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
+      if (mfltData.pClientPort != NULL) {
+        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File read: ";
+        wcscat(wcComMsg, usVolumeName.Buffer);
+        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
+        wcscat(wcComMsg, L"\n");
+        if (!mfltData.bIsComPortClosed) {
+          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
+          if (ntStatus != STATUS_SUCCESS) {
+            DbgPrint("Send message failed 0x%08x\n", ntStatus);
+          }
+        }
+      }
     } else {
       DbgBreakPoint();
     }
-
-    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
   }
-
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
@@ -271,26 +310,40 @@ FLT_PREOP_CALLBACK_STATUS mfltPreWrite(PFLT_CALLBACK_DATA pCallbackData,
 
   // DbgBreakPoint();
 
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE)) {
-    UNICODE_STRING usVolumeName;
-    WCHAR pwcInitString[1024];
-    for (int i = 0; i < 1023; i++) {
+  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
+      pFltObj->FileObject->FileName.Buffer != NULL) {
+    NTSTATUS ntStatus = STATUS_SUCCESS;
+    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+    WCHAR pwcInitString[MAX_BUFFER_SIZE];
+    ULONG ulVolumeNameBufferSize;
+    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
       pwcInitString[i] = L' ';
     }
     RtlInitUnicodeString(&usVolumeName, pwcInitString);
     // DbgBreakPoint();
-    ULONG ulVolumeNameBufferSize;
-    NTSTATUS status = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                       &ulVolumeNameBufferSize);
-    if (status == STATUS_SUCCESS) {
+
+    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+                                &ulVolumeNameBufferSize);
+    if (ntStatus == STATUS_SUCCESS) {
       // DbgBreakPoint();
-      DbgPrint("Write to file: %wZ%wZ\n", usVolumeName,
+      DbgPrint("File written: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
+      if (mfltData.pClientPort != NULL) {
+        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File written: ";
+        wcscat(wcComMsg, usVolumeName.Buffer);
+        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
+        wcscat(wcComMsg, L"\n");
+        if (!mfltData.bIsComPortClosed) {
+          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
+          if (ntStatus != STATUS_SUCCESS) {
+            DbgPrint("Send message failed 0x%08x\n", ntStatus);
+          }
+        }
+      }
     } else {
       DbgBreakPoint();
     }
-
-    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
   }
 
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -303,4 +356,28 @@ FLT_POSTOP_CALLBACK_STATUS mfltPostWrite(
   // DbgPrint("mfltPostWrite called\n");
 
   return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
+                             PPS_CREATE_NOTIFY_INFO pCreateInfo) {
+  if (pCreateInfo != NULL) {
+    DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
+             pCreateInfo->ParentProcessId);
+    /*if (mfltData.pClientPort != NULL) {
+      WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"Process PID ";
+      wcscat(wcComMsg, usVolumeName.Buffer);
+      wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
+      wcscat(wcComMsg, L"\n");
+      if (!mfltData.bIsComPortClosed) {
+        ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                                  wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
+        if (ntStatus != STATUS_SUCCESS) {
+          DbgPrint("Send message failed 0x%08x\n", ntStatus);
+        }
+      }
+    }*/
+  } else {
+    NTSTATUS ntsExitCode = PsGetProcessExitStatus(pProcess);
+    DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid, ntsExitCode, ntsExitCode);
+  }
 }
