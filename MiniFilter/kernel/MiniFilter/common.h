@@ -4,7 +4,7 @@
 #include <fltkernel.h>
 
 #define DbgPrint(x, ...) DbgPrint("[MiniFilter]" x, __VA_ARGS__)
-#define MAX_BUFFER_SIZE 1024
+#define MAX_TIMEOUT 50000000
 
 typedef struct _MFLT_DATA {
   // The driver object
@@ -21,7 +21,7 @@ typedef struct _MFLT_DATA {
 
   //KSPIN_LOCK kslOutputBufferLock;
 
-  CHAR pcOutputBuffer[MAX_BUFFER_SIZE];
+  //CHAR pcOutputBuffer[MAX_BUFFER_SIZE];
 
   volatile BOOLEAN bIsComPortClosed;
 

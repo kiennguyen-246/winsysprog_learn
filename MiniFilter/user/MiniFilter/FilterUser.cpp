@@ -54,7 +54,7 @@ HRESULT FilterUser::loadFilter() {
   wprintf(L"Connection to kernel mode established\n");
   fflush(stdout);
   getchar();
-  
+
   return hr;
 }
 
@@ -84,15 +84,73 @@ HRESULT FilterUser::unloadFilter() {
 }
 
 HRESULT FilterUser::doMainRoutine() {
-  std::wstring wsMsg;
   HRESULT hr = S_OK;
   while (1) {
-    hr = cp.getMsg(wsMsg);
-    if (FAILED(hr)) {
-      return hr;
+    MFLT_EVENT_RECORD eventRecord;
+    ZeroMemory(&eventRecord, sizeof(MFLT_EVENT_RECORD));
+
+    while (1) {
+      hr = cp.getRecord(&eventRecord);
+      if (FAILED(hr)) {
+        return hr;
+      }
+
+      FILETIME fileTime = {eventRecord.uliSysTime.LowPart,
+                           eventRecord.uliSysTime.HighPart};
+      SYSTEMTIME sysTime;
+      FileTimeToSystemTime(&fileTime, &sysTime);
+
+      std::wstring wsEventTypeName;
+      switch (eventRecord.eventType) {
+        case MFLT_OPEN:
+          wsEventTypeName = L"opened";
+          break;
+        case MFLT_CLOSE:
+          wsEventTypeName = L"closed";
+          break;
+        case MFLT_WRITE:
+          wsEventTypeName = L"writen";
+          break;
+        case MFLT_PROCESS_CREATE:
+          wsEventTypeName = L"created";
+          break;
+        case MFLT_PROCESS_TERMINATE:
+          wsEventTypeName = L"terminated";
+          break;
+        default:
+          break;
+      }
+
+      std::wstring wsFileObjType = L"File";
+      if (eventRecord.objInfo.fileInfo.bIsDirectory) {
+        std::wstring wsFileObjType = L"Directory";
+      }
+      if (eventRecord.eventType == MFLT_PROCESS_CREATE ||
+          eventRecord.eventType == MFLT_PROCESS_TERMINATE) {
+        std::wstring wsFileObjType = L"Process";
+      }
+      
+
+      wprintf(L"[%02d/%02d/%d %02d:%02d:%02d][%ws] %ws %ws: %ws%ws\n",
+              sysTime.wDay, sysTime.wMonth, sysTime.wYear, sysTime.wHour,
+              sysTime.wMinute, sysTime.wSecond, wsFilterName.c_str(),
+              wsFileObjType.c_str(), wsEventTypeName.c_str(),
+              eventRecord.objInfo.fileInfo.pwcVolumeName,
+              eventRecord.objInfo.fileInfo.pwcFileName);
+      if (eventRecord.eventType == MFLT_PROCESS_CREATE) {
+        wprintf(L"\tPID: %d\n", eventRecord.objInfo.procInfo.uiPID);
+        wprintf(L"\tParent PID: %d\n", eventRecord.objInfo.procInfo.uiParentPID);
+        wprintf(L"\tImage name: %ws\n", eventRecord.objInfo.procInfo.pwcImageName);
+        wprintf(L"\tCommand line: %ws\n", eventRecord.objInfo.procInfo.pwcCommandLine);
+      }
+      if (eventRecord.eventType == MFLT_PROCESS_TERMINATE) {
+        wprintf(L"\tPID: %d", eventRecord.objInfo.procInfo.uiPID);
+        wprintf(L"\tExitcode: %d", eventRecord.objInfo.procInfo.iExitcode);
+      }
+      break;
     }
-    wprintf(L"[MiniFilter]%ws", wsMsg.c_str());
   }
+
   return hr;
 }
 

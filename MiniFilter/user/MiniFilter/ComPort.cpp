@@ -4,7 +4,7 @@ ComPort::ComPort() { hComPort = NULL; }
 
 ComPort::~ComPort() {
   if (hComPort != NULL) {
-    //CloseHandle(hComPort);
+    // CloseHandle(hComPort);
   }
   hComPort = NULL;
 }
@@ -21,21 +21,29 @@ HRESULT ComPort::connect(std::wstring sPortName) {
   return hr;
 }
 
-HRESULT ComPort::getMsg(std::wstring& wsMsg) {
+HRESULT ComPort::getRecord(PMFLT_EVENT_RECORD pEventRecord) {
   HRESULT hr = S_OK;
   COM_MESSAGE msg;
   memset(&msg, 0, sizeof(&msg));
-  hr = FilterGetMessage(hComPort, &msg.header,
-                        MAX_BUFFER_SIZE + sizeof(FILTER_MESSAGE_HEADER), NULL);
+  hr = FilterGetMessage(
+      hComPort, &msg.header,
+      sizeof(MFLT_EVENT_RECORD) + sizeof(FILTER_MESSAGE_HEADER), NULL);
   if (hr != S_OK) {
     wprintf(L"Get message failed 0x%08x\n", hr);
     return hr;
   }
-  WCHAR pwcObtainedMsgContent[MAX_BUFFER_SIZE / sizeof(WCHAR)];
-  memcpy(pwcObtainedMsgContent, msg.buffer + sizeof(FILTER_MESSAGE_HEADER),
-         MAX_BUFFER_SIZE);
+  //wprintf(L"Get message OK\n");
+  //fflush(stdout);
+
+  // wprintf(L"0x%08x\n", pEventRecord);
+  // wprintf(L"%d\n", sizeof(MFLT_EVENT_RECORD));
+
+  CopyMemory(pEventRecord, &msg.eventRecord, sizeof(MFLT_EVENT_RECORD));
+
+  //wprintf(L"Copy memory OK\n");
+  //fflush(stdout);
+
   // mtx.lock();
-  wsMsg = std::wstring(pwcObtainedMsgContent);
   // fo << std::wstring(pwcObtainedMsgContent);
   // mtx.unlock();
   return hr;

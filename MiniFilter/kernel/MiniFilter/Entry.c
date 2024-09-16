@@ -130,254 +130,149 @@ NTSTATUS mfltComDisconnect(PVOID pConnectionCookie) {
 VOID mfltContextCleanup(PFLT_CONTEXT pFltContext,
                         FLT_CONTEXT_TYPE fltContextType) {}
 
-FLT_PREOP_CALLBACK_STATUS mfltPreClose(PFLT_CALLBACK_DATA pCallbackData,
-                                       PCFLT_RELATED_OBJECTS pFltObj,
-                                       PVOID* pCompletionContext) {
+FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
+                                    PCFLT_RELATED_OBJECTS pFltObj,
+                                    PVOID* pCompletionContext) {
   // DbgBreakPoint();
   // DbgPrint("mfltPreCreate called\n");
 
   // DbgBreakPoint();
 
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
-      pFltObj->FileObject->FileName.Buffer != NULL) {
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
-    WCHAR pwcInitString[MAX_BUFFER_SIZE];
-    ULONG ulVolumeNameBufferSize;
-    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
-      pwcInitString[i] = L' ';
-    }
-    RtlInitUnicodeString(&usVolumeName, pwcInitString);
-    // DbgBreakPoint();
+  NTSTATUS ntStatus = STATUS_SUCCESS;
+  UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+  WCHAR pwcInitString[MAX_BUFFER_SIZE];
+  ULONG ulVolumeNameBufferSize;
+  MFLT_EVENT_RECORD eventRecord;
+  LARGE_INTEGER liSystemTime = {0};
+  LARGE_INTEGER liSystemLocalTime = {0};
 
-    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                &ulVolumeNameBufferSize);
-    if (ntStatus == STATUS_SUCCESS) {
-      // DbgBreakPoint();
-      DbgPrint("File closed: %wZ%wZ\n", usVolumeName,
+  RtlZeroMemory(&eventRecord, sizeof(eventRecord));
+
+  KeQuerySystemTime(&liSystemTime);
+  ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
+  eventRecord.uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
+
+  if (pFltObj->FileObject->FileName.Buffer == NULL) {
+    return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+  }
+
+  wcscat(eventRecord.objInfo.fileInfo.pwcFileName,
+         pFltObj->FileObject->FileName.Buffer);
+
+  for (int i = 0; i < UM_MAX_PATH - 1; i++) {
+    pwcInitString[i] = L' ';
+  }
+  RtlInitUnicodeString(&usVolumeName, pwcInitString);
+  // DbgBreakPoint();
+  ntStatus =
+      FltGetVolumeName(pFltObj->Volume, &usVolumeName, &ulVolumeNameBufferSize);
+  // DbgBreakPoint();
+  if (ntStatus != STATUS_SUCCESS) {
+    DbgPrint("GetVolumeName failed 0x%08x", ntStatus);
+  }
+  wcscat(eventRecord.objInfo.fileInfo.pwcVolumeName, usVolumeName.Buffer);
+
+  switch (pCallbackData->Iopb->MajorFunction) {
+    case IRP_MJ_CREATE:
+      DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
                pFltObj->FileObject->FileName);
-      if (mfltData.pClientPort != NULL) {
-        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File closed: ";
-        wcscat(wcComMsg, usVolumeName.Buffer);
-        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
-        wcscat(wcComMsg, L"\n");
-        if (!mfltData.bIsComPortClosed) {
-          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
-                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
-          if (ntStatus != STATUS_SUCCESS) {
-            DbgPrint("Send message failed 0x%08x\n", ntStatus);
-          }
-        }
+      eventRecord.eventType = MFLT_OPEN;
+      eventRecord.objInfo.fileInfo.bIsDirectory =
+          ((pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) != 0);
+      break;
+    case IRP_MJ_CLOSE:
+      DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+      eventRecord.eventType = MFLT_CLOSE;
+      break;
+    case IRP_MJ_WRITE:
+      DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+      eventRecord.eventType = MFLT_WRITE;
+      break;
+    default:
+      break;
+  }
+
+  if (mfltData.pClientPort != NULL) {
+    LARGE_INTEGER liTimeOut;
+    liTimeOut.QuadPart = MAX_TIMEOUT;
+    if (!mfltData.bIsComPortClosed) {
+      ntStatus =
+          FltSendMessage(mfltData.pFilter, &mfltData.pClientPort, &eventRecord,
+                         sizeof(MFLT_EVENT_RECORD), NULL, 0, NULL);
+      if (ntStatus != STATUS_SUCCESS) {
+        DbgPrint("Send event record failed 0x%08x\n", ntStatus);
       }
-    } else {
-      DbgBreakPoint();
     }
   }
-  return FLT_PREOP_SUCCESS_WITH_CALLBACK;
-}
 
-FLT_POSTOP_CALLBACK_STATUS mfltPostClose(
-    PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
-    PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPostClose called\n");
-
-  // UNICODE_STRING usVolumeName;
-  // FltGetVolumeName(pFltObj->Volume, &usVolumeName, NULL);
-  // DbgBreakPoint();
-
-  return FLT_POSTOP_FINISHED_PROCESSING;
-}
-
-FLT_PREOP_CALLBACK_STATUS mfltPreCreate(PFLT_CALLBACK_DATA pCallbackData,
-                                        PCFLT_RELATED_OBJECTS pFltObj,
-                                        PVOID* pCompletionContext) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPreCreate called\n");
-
-  // DbgBreakPoint();
-
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
-      pFltObj->FileObject->FileName.Buffer != NULL) {
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
-    WCHAR pwcInitString[MAX_BUFFER_SIZE];
-    ULONG ulVolumeNameBufferSize;
-    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
-      pwcInitString[i] = L' ';
-    }
-    RtlInitUnicodeString(&usVolumeName, pwcInitString);
-    // DbgBreakPoint();
-
-    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                &ulVolumeNameBufferSize);
-    if (ntStatus == STATUS_SUCCESS) {
-      // DbgBreakPoint();
-      DbgPrint("File opened: %wZ%wZ\n", usVolumeName,
-               pFltObj->FileObject->FileName);
-      if (mfltData.pClientPort != NULL) {
-        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File opened: ";
-        wcscat(wcComMsg, usVolumeName.Buffer);
-        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
-        wcscat(wcComMsg, L"\n");
-        if (!mfltData.bIsComPortClosed) {
-          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
-                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
-          if (ntStatus != STATUS_SUCCESS) {
-            DbgPrint("Send message failed 0x%08x\n", ntStatus);
-          }
-        }
-      }
-    } else {
-      DbgBreakPoint();
-    }
-
-    // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
-  }
+  // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
 
   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
 
-FLT_POSTOP_CALLBACK_STATUS mfltPostCreate(
+FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
     PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
     PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
   // DbgBreakPoint();
   // DbgPrint("mfltPostCreate called\n");
 
-  return FLT_POSTOP_FINISHED_PROCESSING;
-}
-
-FLT_PREOP_CALLBACK_STATUS mfltPreRead(PFLT_CALLBACK_DATA pCallbackData,
-                                      PCFLT_RELATED_OBJECTS pFltObj,
-                                      PVOID* pCompletionContext) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPreCreate called\n");
-
-  // DbgBreakPoint();
-
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
-      pFltObj->FileObject->FileName.Buffer != NULL) {
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
-    WCHAR pwcInitString[MAX_BUFFER_SIZE];
-    ULONG ulVolumeNameBufferSize;
-    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
-      pwcInitString[i] = L' ';
-    }
-    RtlInitUnicodeString(&usVolumeName, pwcInitString);
-    // DbgBreakPoint();
-
-    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                &ulVolumeNameBufferSize);
-    if (ntStatus == STATUS_SUCCESS) {
-      // DbgBreakPoint();
-      DbgPrint("File read: %wZ%wZ\n", usVolumeName,
-               pFltObj->FileObject->FileName);
-      if (mfltData.pClientPort != NULL) {
-        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File read: ";
-        wcscat(wcComMsg, usVolumeName.Buffer);
-        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
-        wcscat(wcComMsg, L"\n");
-        if (!mfltData.bIsComPortClosed) {
-          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
-                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
-          if (ntStatus != STATUS_SUCCESS) {
-            DbgPrint("Send message failed 0x%08x\n", ntStatus);
-          }
-        }
-      }
-    } else {
-      DbgBreakPoint();
-    }
-  }
-  return FLT_PREOP_SUCCESS_WITH_CALLBACK;
-}
-
-FLT_POSTOP_CALLBACK_STATUS mfltPostRead(
-    PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
-    PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPostRead called\n");
-
-  return FLT_POSTOP_FINISHED_PROCESSING;
-}
-
-FLT_PREOP_CALLBACK_STATUS mfltPreWrite(PFLT_CALLBACK_DATA pCallbackData,
-                                       PCFLT_RELATED_OBJECTS pFltObj,
-                                       PVOID* pCompletionContext) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPreCreate called\n");
-
-  // DbgBreakPoint();
-
-  if (!(pFltObj->FileObject->Flags & FILE_DIRECTORY_FILE) &&
-      pFltObj->FileObject->FileName.Buffer != NULL) {
-    NTSTATUS ntStatus = STATUS_SUCCESS;
-    UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
-    WCHAR pwcInitString[MAX_BUFFER_SIZE];
-    ULONG ulVolumeNameBufferSize;
-    for (int i = 0; i < MAX_BUFFER_SIZE - 1; i++) {
-      pwcInitString[i] = L' ';
-    }
-    RtlInitUnicodeString(&usVolumeName, pwcInitString);
-    // DbgBreakPoint();
-
-    ntStatus = FltGetVolumeName(pFltObj->Volume, &usVolumeName,
-                                &ulVolumeNameBufferSize);
-    if (ntStatus == STATUS_SUCCESS) {
-      // DbgBreakPoint();
-      DbgPrint("File written: %wZ%wZ\n", usVolumeName,
-               pFltObj->FileObject->FileName);
-      if (mfltData.pClientPort != NULL) {
-        WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"File written: ";
-        wcscat(wcComMsg, usVolumeName.Buffer);
-        wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
-        wcscat(wcComMsg, L"\n");
-        if (!mfltData.bIsComPortClosed) {
-          ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
-                                    wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
-          if (ntStatus != STATUS_SUCCESS) {
-            DbgPrint("Send message failed 0x%08x\n", ntStatus);
-          }
-        }
-      }
-    } else {
-      DbgBreakPoint();
-    }
-  }
-
-  return FLT_PREOP_SUCCESS_WITH_CALLBACK;
-}
-
-FLT_POSTOP_CALLBACK_STATUS mfltPostWrite(
-    PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
-    PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPostWrite called\n");
+  // if (pCallbackData->Iopb->MajorFunction == IRP_MJ_CREATE) {
+  //   DbgPrint("%d\n",
+  //            (pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) !=
+  //            0);
+  // }
 
   return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
 VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
                              PPS_CREATE_NOTIFY_INFO pCreateInfo) {
+  MFLT_EVENT_RECORD eventRecord;
+  LARGE_INTEGER liSystemTime = {0};
+  LARGE_INTEGER liSystemLocalTime = {0};
+
+  RtlZeroMemory(&eventRecord, sizeof(eventRecord));
+
+  KeQuerySystemTime(&liSystemTime);
+  ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
+  eventRecord.uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
   if (pCreateInfo != NULL) {
     DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
              pCreateInfo->ParentProcessId);
-    /*if (mfltData.pClientPort != NULL) {
-      WCHAR wcComMsg[MAX_BUFFER_SIZE / sizeof(WCHAR)] = L"Process PID ";
-      wcscat(wcComMsg, usVolumeName.Buffer);
-      wcscat(wcComMsg, pFltObj->FileObject->FileName.Buffer);
-      wcscat(wcComMsg, L"\n");
-      if (!mfltData.bIsComPortClosed) {
-        ntStatus = FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
-                                  wcComMsg, MAX_BUFFER_SIZE, NULL, 0, NULL);
-        if (ntStatus != STATUS_SUCCESS) {
-          DbgPrint("Send message failed 0x%08x\n", ntStatus);
-        }
-      }
-    }*/
+    eventRecord.eventType = MFLT_PROCESS_CREATE;
+    eventRecord.objInfo.procInfo.uiPID = (ULONG)hPid;
+    eventRecord.objInfo.procInfo.uiParentPID =
+        (ULONG)pCreateInfo->ParentProcessId;
+    if (pCreateInfo->ImageFileName->Buffer != NULL) {
+      wcscat(eventRecord.objInfo.procInfo.pwcImageName,
+             pCreateInfo->ImageFileName->Buffer);
+    }
+    if (pCreateInfo->CommandLine->Buffer != NULL) {
+      wcscat(eventRecord.objInfo.procInfo.pwcCommandLine,
+             pCreateInfo->CommandLine->Buffer);
+    }
+
   } else {
     NTSTATUS ntsExitCode = PsGetProcessExitStatus(pProcess);
-    DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid, ntsExitCode, ntsExitCode);
+    DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid,
+             ntsExitCode, ntsExitCode);
+    eventRecord.eventType = MFLT_PROCESS_CREATE;
+    eventRecord.objInfo.procInfo.uiPID = (ULONG)hPid;
+    eventRecord.objInfo.procInfo.iExitcode = (ULONG)ntsExitCode;
+  }
+
+  if (mfltData.pClientPort != NULL) {
+    LARGE_INTEGER liTimeOut;
+    liTimeOut.QuadPart = MAX_TIMEOUT;
+    if (!mfltData.bIsComPortClosed) {
+      NTSTATUS ntStatus =
+          FltSendMessage(mfltData.pFilter, &mfltData.pClientPort, &eventRecord,
+                         sizeof(MFLT_EVENT_RECORD), NULL, 0, NULL);
+      if (ntStatus != STATUS_SUCCESS) {
+        DbgPrint("Send event record failed 0x%08x\n", ntStatus);
+      }
+    }
   }
 }

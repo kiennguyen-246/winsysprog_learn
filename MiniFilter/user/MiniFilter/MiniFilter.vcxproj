@@ -120,6 +120,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -135,6 +136,7 @@
     <ClCompile Include="MiniFilter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\public\public.h" />
     <ClInclude Include="ComPort.hpp" />
     <ClInclude Include="FilterUser.hpp" />
     <ClInclude Include="utils.hpp" />

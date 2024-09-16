@@ -5,10 +5,11 @@
 #include <fltUser.h>
 
 #include "utils.hpp"
+#include "public/public.h"
 
-typedef union __COM_MESSAGE {
+typedef struct _COM_MESSAGE {
   FILTER_MESSAGE_HEADER header;
-  BYTE buffer[MAX_BUFFER_SIZE];
+  MFLT_EVENT_RECORD eventRecord;
 } COM_MESSAGE, *PCOM_MESSAGE;
 
 class ComPort {
@@ -19,7 +20,7 @@ class ComPort {
 
   HRESULT connect(std::wstring sPortName);
 
-  HRESULT getMsg(std::wstring& wsMsg);
+  HRESULT getRecord(PMFLT_EVENT_RECORD pEventRecord);
 
   HRESULT disconnect();
 
