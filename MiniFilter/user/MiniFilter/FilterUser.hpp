@@ -1,13 +1,14 @@
 #ifndef MFLT_USER_HPP
 #define MFLT_USER_HPP
 
+#include <format>
 #include <fstream>
 #include <future>
 
-#include "utils.hpp"
 #include "ComPort.hpp"
+#include "utils.hpp"
 
-const WCHAR DEFAULT_LOG_FILE_PATH[] = L".\\events.log"; 
+const WCHAR DEFAULT_LOG_FILE_PATH[] = L".\\events.log";
 const int MAX_SAVED_LOG_LENGTH = 1024;
 
 class FilterUser {
@@ -24,6 +25,7 @@ class FilterUser {
   HRESULT unloadFilter();
 
   HRESULT doMainRoutine();
+
  private:
   ComPort cp;
 
@@ -45,7 +47,8 @@ class FilterUser {
 
   HRESULT setPrivilege(HANDLE hToken, LPCWSTR pwcPrivilege,
                        BOOL bIsPrivilegeEnabled);
-  
+
+  HRESULT composeMessage(PMFLT_EVENT_RECORD pEventRecord, std::wstring* pwsMsg);
 };
 
 #endif

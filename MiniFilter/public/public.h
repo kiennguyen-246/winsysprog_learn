@@ -1,4 +1,8 @@
+#ifndef PUBLIC_H
+#define PUBLIC_H
+
 #define MAX_BUFFER_SIZE 1024
+#define MAX_BUFFERED_EVENT_COUNT 10
 #define UM_MAX_PATH 260
 
 typedef enum _MFLT_EVENT_TYPE {
@@ -15,7 +19,11 @@ typedef union _MFLT_OBJ_INFO {
   struct {
     WCHAR pwcFileName[UM_MAX_PATH];
 
+    ULONG uiFileNameLength;
+
     WCHAR pwcVolumeName[UM_MAX_PATH];
+
+    ULONG uiVolumeNameLength;
 
     // ULONG uiSize;
 
@@ -42,7 +50,11 @@ typedef union _MFLT_OBJ_INFO {
 
     WCHAR pwcImageName[UM_MAX_PATH];
 
+    ULONG uiImageNameLength;
+
     WCHAR pwcCommandLine[UM_MAX_PATH];
+
+    ULONG uiCommandLineLength;
 
     LONG iExitcode;
   } procInfo;
@@ -55,3 +67,11 @@ typedef struct _MFLT_EVENT_RECORD {
 
   MFLT_OBJ_INFO objInfo;
 } MFLT_EVENT_RECORD, *PMFLT_EVENT_RECORD;
+
+typedef struct _MFLT_SEND_MESSAGE {
+  MFLT_EVENT_RECORD pEventRecordBuffer[MAX_BUFFERED_EVENT_COUNT];
+
+  ULONG uiEventRecordCount;
+}MFLT_SEND_MESSAGE, *PMFLT_SEND_MESSAGE;
+
+#endif

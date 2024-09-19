@@ -53,7 +53,6 @@ HRESULT FilterUser::loadFilter() {
   bIsComPortConnected = 1;
   wprintf(L"Connection to kernel mode established\n");
   fflush(stdout);
-  getchar();
 
   return hr;
 }
@@ -67,7 +66,6 @@ HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeName) {
   }
   wprintf(L"Successfully load and attach filter\n");
   fflush(stdout);
-  getchar();
   return hr;
 }
 
@@ -86,69 +84,33 @@ HRESULT FilterUser::unloadFilter() {
 HRESULT FilterUser::doMainRoutine() {
   HRESULT hr = S_OK;
   while (1) {
+    /* std::vector<MFLT_EVENT_RECORD> vEventRecord;
+     vEventRecord.clear();
+
+     hr = cp.getRecord(&vEventRecord);
+     if (FAILED(hr)) {
+       return hr;
+     }
+
+     for (auto& eventRecord : vEventRecord) {
+         std::wstring wsMsg;
+         hr = composeMessage(&eventRecord, &wsMsg);
+         wprintf(L"%ws", wsMsg.c_str());
+     }*/
+
     MFLT_EVENT_RECORD eventRecord;
-    ZeroMemory(&eventRecord, sizeof(MFLT_EVENT_RECORD));
+    ZeroMemory(&eventRecord, sizeof(eventRecord));
 
-    while (1) {
-      hr = cp.getRecord(&eventRecord);
-      if (FAILED(hr)) {
-        return hr;
-      }
-
-      FILETIME fileTime = {eventRecord.uliSysTime.LowPart,
-                           eventRecord.uliSysTime.HighPart};
-      SYSTEMTIME sysTime;
-      FileTimeToSystemTime(&fileTime, &sysTime);
-
-      std::wstring wsEventTypeName;
-      switch (eventRecord.eventType) {
-        case MFLT_OPEN:
-          wsEventTypeName = L"opened";
-          break;
-        case MFLT_CLOSE:
-          wsEventTypeName = L"closed";
-          break;
-        case MFLT_WRITE:
-          wsEventTypeName = L"writen";
-          break;
-        case MFLT_PROCESS_CREATE:
-          wsEventTypeName = L"created";
-          break;
-        case MFLT_PROCESS_TERMINATE:
-          wsEventTypeName = L"terminated";
-          break;
-        default:
-          break;
-      }
-
-      std::wstring wsFileObjType = L"File";
-      if (eventRecord.objInfo.fileInfo.bIsDirectory) {
-        std::wstring wsFileObjType = L"Directory";
-      }
-      if (eventRecord.eventType == MFLT_PROCESS_CREATE ||
-          eventRecord.eventType == MFLT_PROCESS_TERMINATE) {
-        std::wstring wsFileObjType = L"Process";
-      }
-      
-
-      wprintf(L"[%02d/%02d/%d %02d:%02d:%02d][%ws] %ws %ws: %ws%ws\n",
-              sysTime.wDay, sysTime.wMonth, sysTime.wYear, sysTime.wHour,
-              sysTime.wMinute, sysTime.wSecond, wsFilterName.c_str(),
-              wsFileObjType.c_str(), wsEventTypeName.c_str(),
-              eventRecord.objInfo.fileInfo.pwcVolumeName,
-              eventRecord.objInfo.fileInfo.pwcFileName);
-      if (eventRecord.eventType == MFLT_PROCESS_CREATE) {
-        wprintf(L"\tPID: %d\n", eventRecord.objInfo.procInfo.uiPID);
-        wprintf(L"\tParent PID: %d\n", eventRecord.objInfo.procInfo.uiParentPID);
-        wprintf(L"\tImage name: %ws\n", eventRecord.objInfo.procInfo.pwcImageName);
-        wprintf(L"\tCommand line: %ws\n", eventRecord.objInfo.procInfo.pwcCommandLine);
-      }
-      if (eventRecord.eventType == MFLT_PROCESS_TERMINATE) {
-        wprintf(L"\tPID: %d", eventRecord.objInfo.procInfo.uiPID);
-        wprintf(L"\tExitcode: %d", eventRecord.objInfo.procInfo.iExitcode);
-      }
-      break;
+    hr = cp.getRecord(&eventRecord);
+    if (FAILED(hr)) {
+      return hr;
     }
+
+    std::wstring wsMsg;
+    hr = composeMessage(&eventRecord, &wsMsg);
+    wprintf(wsMsg.c_str());
+    // wfsLog << wsMsg;
+    // wfsLog.flush();
   }
 
   return hr;
@@ -184,5 +146,97 @@ HRESULT FilterUser::setPrivilege(HANDLE hToken, LPCWSTR pwcPrivilege,
     return ERROR_NOT_ALL_ASSIGNED;
   }
 
+  return S_OK;
+}
+
+HRESULT FilterUser::composeMessage(PMFLT_EVENT_RECORD pEventRecord,
+                                   std::wstring* pwsMsg) {
+  FILETIME fileTime = {pEventRecord->uliSysTime.LowPart,
+                       pEventRecord->uliSysTime.HighPart};
+  SYSTEMTIME sysTime;
+  std::wstring wsEventAction = L"";
+  std::wstring wsFileObjType = L"File";
+  std::wstring wsDescription = L"";
+  std::wstring wsDetails = L"";
+  pwsMsg->clear();
+
+  FileTimeToSystemTime(&fileTime, &sysTime);
+
+  *pwsMsg =
+      std::format(L"[{:02d}/{:02d}/{:04d} {:02d}:{:02d}:{:02d}][{}] ",
+                  sysTime.wDay, sysTime.wMonth, sysTime.wYear, sysTime.wHour,
+                  sysTime.wMinute, sysTime.wSecond, wsFilterName.c_str());
+
+  switch (pEventRecord->eventType) {
+    case MFLT_CLOSE:
+    case MFLT_DELETE:
+    case MFLT_OPEN:
+    case MFLT_WRITE:
+      if (pEventRecord->eventType == MFLT_CLOSE) {
+        wsEventAction = L"closed";
+      }
+      if (pEventRecord->eventType == MFLT_DELETE) {
+        wsEventAction = L"deleted";
+      }
+      if (pEventRecord->eventType == MFLT_OPEN) {
+        wsEventAction = L"opened";
+      }
+      if (pEventRecord->eventType == MFLT_WRITE) {
+        wsEventAction = L"written";
+      }
+
+      if (pEventRecord->objInfo.fileInfo.bIsDirectory) {
+        wsFileObjType = L"Directory";
+      }
+
+      wsDescription = std::format(
+          L"{} {}: {}{}\n", wsFileObjType.c_str(), wsEventAction.c_str(),
+          std::wstring(pEventRecord->objInfo.fileInfo.pwcVolumeName)
+              .substr(0, pEventRecord->objInfo.fileInfo.uiVolumeNameLength)
+              .c_str(),
+          std::wstring(pEventRecord->objInfo.fileInfo.pwcFileName)
+              .substr(0, pEventRecord->objInfo.fileInfo.uiFileNameLength)
+              .c_str());
+
+      *pwsMsg += wsDescription;
+
+      break;
+    case MFLT_PROCESS_CREATE:
+    case MFLT_PROCESS_TERMINATE:
+      if (pEventRecord->eventType == MFLT_PROCESS_CREATE) {
+        wsEventAction = L"created";
+        wsDetails = std::format(
+            L"\tPID\t\t: {}\n"
+            L"\tParent PID\t: {}\n"
+            L"\tImage name\t: {}\n"
+            L"\tCommand Line\t: {}\n",
+            pEventRecord->objInfo.procInfo.uiPID,
+            pEventRecord->objInfo.procInfo.uiParentPID,
+            std::wstring(pEventRecord->objInfo.procInfo.pwcImageName)
+                .substr(0, pEventRecord->objInfo.procInfo.uiImageNameLength)
+                .c_str(),
+            std::wstring(pEventRecord->objInfo.procInfo.pwcCommandLine)
+                .substr(0, pEventRecord->objInfo.procInfo.uiCommandLineLength)
+                .c_str());
+      }
+      if (pEventRecord->eventType == MFLT_PROCESS_TERMINATE) {
+        wsEventAction = L"terminated";
+        wsDetails = std::format(
+            L"\tPID\t\t: {}\n"
+            L"\tExitcode\t: {}\n",
+            pEventRecord->objInfo.procInfo.uiPID,
+            pEventRecord->objInfo.procInfo.iExitcode);
+      }
+      wsFileObjType = L"Process";
+
+      wsDescription =
+          std::format(L"{} {}\n", wsFileObjType.c_str(), wsEventAction.c_str());
+
+      *pwsMsg += wsDescription;
+      *pwsMsg += wsDetails;
+      break;
+    default:
+      break;
+  }
   return S_OK;
 }

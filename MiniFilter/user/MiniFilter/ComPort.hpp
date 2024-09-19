@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <fltUser.h>
 
+#include <vector>
 #include "utils.hpp"
 #include "public/public.h"
 
@@ -21,6 +22,8 @@ class ComPort {
   HRESULT connect(std::wstring sPortName);
 
   HRESULT getRecord(PMFLT_EVENT_RECORD pEventRecord);
+
+  //HRESULT getRecord(std::vector<MFLT_EVENT_RECORD>* pvEventRecord);
 
   HRESULT disconnect();
 
