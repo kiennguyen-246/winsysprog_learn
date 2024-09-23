@@ -4,9 +4,11 @@
 #include <format>
 #include <fstream>
 #include <future>
+#include <map>
 
 #include "ComPort.hpp"
 #include "utils.hpp"
+#include "JSONObj.hpp"
 
 const WCHAR DEFAULT_LOG_FILE_PATH[] = L".\\events.log";
 const int MAX_SAVED_LOG_LENGTH = 1024;
@@ -38,6 +40,8 @@ class FilterUser {
   std::wofstream wfsLog;
 
   std::wstring wsSavedLog;
+
+  std::unordered_map<std::wstring, std::wstring> umDosDevices;
 
   std::mutex mtx;
 

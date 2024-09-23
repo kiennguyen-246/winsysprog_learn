@@ -8,6 +8,7 @@ FilterUser::FilterUser(std::wstring ws__FilterName,
   wfsLog.open(wsLogFilePath);
   bIsFilterLoaded = false;
   bIsComPortConnected = false;
+  umDosDevices.clear();
 }
 
 FilterUser::~FilterUser() {
@@ -57,9 +58,25 @@ HRESULT FilterUser::loadFilter() {
   return hr;
 }
 
-HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeName) {
+HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeDosName) {
   HRESULT hr = S_OK;
-  hr = FilterAttach(wsFilterName.c_str(), wsVolumeName.c_str(), NULL, 0, NULL);
+  if (umDosDevices.find(wsVolumeDosName) == umDosDevices.end()) {
+    WCHAR pwcVolumeName[MAX_PATH];
+    DWORD uiVolumeNameLength = 0;
+    uiVolumeNameLength =
+        QueryDosDeviceW(wsVolumeDosName.c_str(), pwcVolumeName, MAX_PATH);
+    if (uiVolumeNameLength == 0) {
+      hr = GetLastError();
+      wprintf(L"Cannot find volume %ws, error 0x%08x", wsVolumeDosName.c_str(),
+              hr);
+      return hr;
+    }
+    umDosDevices.insert({std::wstring(pwcVolumeName), wsVolumeDosName});
+    std::wcout << std::wstring(pwcVolumeName) << " " << wsVolumeDosName << "\n";
+  }
+
+  hr = FilterAttach(wsFilterName.c_str(), wsVolumeDosName.c_str(), NULL, 0,
+                    NULL);
   if (FAILED(hr)) {
     wprintf(L"Attach filter failed 0x%08x\n", hr);
     return hr;
@@ -69,9 +86,9 @@ HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeName) {
   return hr;
 }
 
-HRESULT FilterUser::detachFilterFromVolume(std::wstring wsVolumeName) {
+HRESULT FilterUser::detachFilterFromVolume(std::wstring wsVolumeDosName) {
   HRESULT hr = S_OK;
-  hr = FilterDetach(wsFilterName.c_str(), wsVolumeName.c_str(), NULL);
+  hr = FilterDetach(wsFilterName.c_str(), wsVolumeDosName.c_str(), NULL);
   return hr;
 }
 
@@ -109,8 +126,9 @@ HRESULT FilterUser::doMainRoutine() {
     std::wstring wsMsg;
     hr = composeMessage(&eventRecord, &wsMsg);
     wprintf(wsMsg.c_str());
-    // wfsLog << wsMsg;
-    // wfsLog.flush();
+    fflush(stdout);
+    wfsLog << wsMsg;
+    wfsLog.flush();
   }
 
   return hr;
@@ -156,87 +174,112 @@ HRESULT FilterUser::composeMessage(PMFLT_EVENT_RECORD pEventRecord,
   SYSTEMTIME sysTime;
   std::wstring wsEventAction = L"";
   std::wstring wsFileObjType = L"File";
-  std::wstring wsDescription = L"";
-  std::wstring wsDetails = L"";
+  JSONObj jsObj;
+
   pwsMsg->clear();
 
   FileTimeToSystemTime(&fileTime, &sysTime);
 
-  *pwsMsg =
-      std::format(L"[{:02d}/{:02d}/{:04d} {:02d}:{:02d}:{:02d}][{}] ",
-                  sysTime.wDay, sysTime.wMonth, sysTime.wYear, sysTime.wHour,
-                  sysTime.wMinute, sysTime.wSecond, wsFilterName.c_str());
+  jsObj.addSingleObj(
+      L"time", std::format(L"{:02d}/{:02d}/{:04d} {:02d}:{:02d}:{:02d}",
+                           sysTime.wDay, sysTime.wMonth, sysTime.wYear,
+                           sysTime.wHour, sysTime.wMinute, sysTime.wSecond));
+  jsObj.addSingleObj(L"filterName", wsFilterName);
+
+  //*pwsMsg =
+  //    std::format(L"[{:02d}/{:02d}/{:04d} {:02d}:{:02d}:{:02d}][{}] ",
+  //                sysTime.wDay, sysTime.wMonth, sysTime.wYear, sysTime.wHour,
+  //                sysTime.wMinute, sysTime.wSecond, wsFilterName.c_str());
 
   switch (pEventRecord->eventType) {
+    case MFLT_CREATE:
     case MFLT_CLOSE:
     case MFLT_DELETE:
     case MFLT_OPEN:
     case MFLT_WRITE:
+      jsObj.addSingleObj(L"eventObjType", L"file");
+
+      if (pEventRecord->eventType == MFLT_CREATE) {
+        wsEventAction = L"create";
+      }
       if (pEventRecord->eventType == MFLT_CLOSE) {
-        wsEventAction = L"closed";
+        wsEventAction = L"close";
       }
       if (pEventRecord->eventType == MFLT_DELETE) {
-        wsEventAction = L"deleted";
+        wsEventAction = L"delete";
       }
       if (pEventRecord->eventType == MFLT_OPEN) {
-        wsEventAction = L"opened";
+        wsEventAction = L"open";
       }
       if (pEventRecord->eventType == MFLT_WRITE) {
-        wsEventAction = L"written";
+        wsEventAction = L"write";
       }
+      jsObj.addSingleObj(L"action", wsEventAction);
 
       if (pEventRecord->objInfo.fileInfo.bIsDirectory) {
-        wsFileObjType = L"Directory";
+        wsFileObjType = L"directory";
       }
+      if (pEventRecord->eventType == MFLT_CLOSE) {
+        wsFileObjType = L"handle";
+      }
+      jsObj.addSingleObj(L"fileHandleType", wsFileObjType);
 
-      wsDescription = std::format(
-          L"{} {}: {}{}\n", wsFileObjType.c_str(), wsEventAction.c_str(),
-          std::wstring(pEventRecord->objInfo.fileInfo.pwcVolumeName)
-              .substr(0, pEventRecord->objInfo.fileInfo.uiVolumeNameLength)
-              .c_str(),
+      jsObj.addSingleObj(
+          L"fileHandleVolumeDosName",
+          umDosDevices[std::wstring(
+                           pEventRecord->objInfo.fileInfo.pwcVolumeName)
+                           .substr(0, pEventRecord->objInfo.fileInfo
+                                          .uiVolumeNameLength)]);
+
+      jsObj.addSingleObj(
+          L"fileHandleDirectory",
           std::wstring(pEventRecord->objInfo.fileInfo.pwcFileName)
-              .substr(0, pEventRecord->objInfo.fileInfo.uiFileNameLength)
-              .c_str());
+              .substr(0, pEventRecord->objInfo.fileInfo.uiFileNameLength));
 
-      *pwsMsg += wsDescription;
+      jsObj.addSingleObj(
+          L"operationStatus",
+          std::format(L"0x{:08x}",
+                      pEventRecord->objInfo.fileInfo.iOperationStatus));
+
+      if (pEventRecord->eventType == MFLT_CREATE ||
+          pEventRecord->eventType == MFLT_OPEN) {
+        jsObj.addSingleObj(L"isAttemptingOverwrite",
+                           std::format(L"{}", pEventRecord->objInfo.fileInfo.bIsOverwritten));
+      }
 
       break;
     case MFLT_PROCESS_CREATE:
     case MFLT_PROCESS_TERMINATE:
       if (pEventRecord->eventType == MFLT_PROCESS_CREATE) {
-        wsEventAction = L"created";
-        wsDetails = std::format(
-            L"\tPID\t\t: {}\n"
-            L"\tParent PID\t: {}\n"
-            L"\tImage name\t: {}\n"
-            L"\tCommand Line\t: {}\n",
-            pEventRecord->objInfo.procInfo.uiPID,
-            pEventRecord->objInfo.procInfo.uiParentPID,
-            std::wstring(pEventRecord->objInfo.procInfo.pwcImageName)
-                .substr(0, pEventRecord->objInfo.procInfo.uiImageNameLength)
-                .c_str(),
+        jsObj.addSingleObj(L"eventObjType", L"process");
+        jsObj.addSingleObj(L"action", L"create");
+        jsObj.addSingleObj(L"pid", std::format(L"{}", pEventRecord->objInfo.procInfo.uiPID));
+        jsObj.addSingleObj(
+            L"parentPid",
+            std::format(L"{}", pEventRecord->objInfo.procInfo.uiParentPID));
+        jsObj.addSingleObj(
+            L"imageFileDir", std::wstring(pEventRecord->objInfo.procInfo.pwcImageName)
+                .substr(0, pEventRecord->objInfo.procInfo.uiImageNameLength));
+        jsObj.addSingleObj(
+            L"commandLine",
             std::wstring(pEventRecord->objInfo.procInfo.pwcCommandLine)
-                .substr(0, pEventRecord->objInfo.procInfo.uiCommandLineLength)
-                .c_str());
+                .substr(0, pEventRecord->objInfo.procInfo.uiCommandLineLength));
       }
       if (pEventRecord->eventType == MFLT_PROCESS_TERMINATE) {
-        wsEventAction = L"terminated";
-        wsDetails = std::format(
-            L"\tPID\t\t: {}\n"
-            L"\tExitcode\t: {}\n",
-            pEventRecord->objInfo.procInfo.uiPID,
-            pEventRecord->objInfo.procInfo.iExitcode);
+        jsObj.addSingleObj(L"eventObjType", L"process");
+        jsObj.addSingleObj(L"action", L"create");
+        jsObj.addSingleObj(
+            L"pid", std::format(L"{}", pEventRecord->objInfo.procInfo.uiPID));
+        jsObj.addSingleObj(
+            L"exitcode",
+            std::format(L"{}", pEventRecord->objInfo.procInfo.iExitcode));
       }
-      wsFileObjType = L"Process";
 
-      wsDescription =
-          std::format(L"{} {}\n", wsFileObjType.c_str(), wsEventAction.c_str());
-
-      *pwsMsg += wsDescription;
-      *pwsMsg += wsDetails;
       break;
     default:
       break;
   }
+
+  *pwsMsg = jsObj.toString();
   return S_OK;
 }

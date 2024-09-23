@@ -147,6 +147,126 @@ FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
 
   // DbgBreakPoint();
 
+  // NTSTATUS ntStatus = STATUS_SUCCESS;
+  // UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
+  // WCHAR pwcInitString[MAX_BUFFER_SIZE];
+  // ULONG ulVolumeNameBufferSize;
+  // PMFLT_EVENT_RECORD pEventRecord;
+  // LARGE_INTEGER liSystemTime = {0};
+  // LARGE_INTEGER liSystemLocalTime = {0};
+  // PFLT_GENERIC_WORKITEM pWorkItem = NULL;
+
+  // if (pFltObj->FileObject->FileName.Buffer == NULL) {
+  //   return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+  // }
+
+  //// DbgBreakPoint();
+  // pEventRecord = (PMFLT_EVENT_RECORD)ExAllocatePool2(
+  //     POOL_FLAG_NON_PAGED, sizeof(MFLT_EVENT_RECORD), 'REFM');
+  // RtlZeroMemory(pEventRecord, sizeof(MFLT_EVENT_RECORD));
+
+  // KeQuerySystemTime(&liSystemTime);
+  // ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
+  // pEventRecord->uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
+
+  // wcscat(pEventRecord->objInfo.fileInfo.pwcFileName,
+  //        pFltObj->FileObject->FileName.Buffer);
+  // pEventRecord->objInfo.fileInfo.uiFileNameLength =
+  //     pFltObj->FileObject->FileName.Length;
+
+  // for (int i = 0; i < UM_MAX_PATH - 1; i++) {
+  //   pwcInitString[i] = L' ';
+  // }
+  // RtlInitUnicodeString(&usVolumeName, pwcInitString);
+  //// DbgBreakPoint();
+  // ntStatus =
+  //     FltGetVolumeName(pFltObj->Volume, &usVolumeName,
+  //     &ulVolumeNameBufferSize);
+  //// DbgBreakPoint();
+  // if (ntStatus != STATUS_SUCCESS) {
+  //   DbgPrint("GetVolumeName failed 0x%08x", ntStatus);
+  // }
+  // wcscat(pEventRecord->objInfo.fileInfo.pwcVolumeName, usVolumeName.Buffer);
+  // pEventRecord->objInfo.fileInfo.uiVolumeNameLength = usVolumeName.Length;
+
+  // switch (pCallbackData->Iopb->MajorFunction) {
+  //   case IRP_MJ_CREATE:
+  //     DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
+  //              pFltObj->FileObject->FileName);
+
+  //    DbgPrint("Create options:");
+  //    for (int i = 0; i < 24; i++) {
+  //      if ((pCallbackData->Iopb->Parameters.Create.Options & (1 << i)) != 0)
+  //      {
+  //        DbgPrint("0x%08x, ", (1 << i));
+  //      }
+  //    }
+  //    DbgPrint("\n");
+
+  //    DbgPrint("Disposition: ");
+  //    switch (pCallbackData->Iopb->Parameters.Create.Options >> 24) {
+  //      case FILE_SUPERSEDE:
+  //        DbgPrint("FILE_SUPERSEDE\n");
+  //        break;
+  //      case FILE_OPEN:
+  //        DbgPrint("FILE_OPEN\n");
+  //        break;
+  //      case FILE_CREATE:
+  //        DbgPrint("FILE_CREATE\n");
+  //        break;
+  //      case FILE_OPEN_IF:
+  //        DbgPrint("FILE_OPEN_IF\n");
+  //        break;
+  //      case FILE_OVERWRITE:
+  //        DbgPrint("FILE_OVERWRITE\n");
+  //        break;
+  //      case FILE_OVERWRITE_IF:
+  //        DbgPrint("FILE_OVERWRITE_IF\n");
+  //        break;
+  //      default:
+  //        break;
+  //    }
+
+  //    DbgPrint("Status: 0x%08x\n", pCallbackData->IoStatus.Status);
+
+  //    pEventRecord->eventType = MFLT_OPEN;
+  //    pEventRecord->objInfo.fileInfo.bIsDirectory =
+  //        ((pCallbackData->Iopb->Parameters.Create.Options &
+  //          FILE_DIRECTORY_FILE) != 0);
+  //    break;
+  //  case IRP_MJ_CLOSE:
+  //    // DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
+  //    // pFltObj->FileObject->FileName);
+  //    pEventRecord->eventType = MFLT_CLOSE;
+  //    break;
+  //  case IRP_MJ_WRITE:
+  //    // DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
+  //    // pFltObj->FileObject->FileName);
+  //    pEventRecord->eventType = MFLT_WRITE;
+  //    break;
+  //  default:
+  //    break;
+  //}
+
+  // pWorkItem = FltAllocateGenericWorkItem();
+  // FltQueueGenericWorkItem(pWorkItem, mfltData.pFilter,
+  //                         mfltSendMessageWorkItemRoutine, DelayedWorkQueue,
+  //                         pEventRecord);
+
+  return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+}
+
+FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
+    PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
+    PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
+  // DbgBreakPoint();
+  // DbgPrint("mfltPostCreate called\n");
+
+  // if (pCallbackData->Iopb->MajorFunction == IRP_MJ_CREATE) {
+  //   DbgPrint("%d\n",
+  //            (pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) !=
+  //            0);
+  // }
   NTSTATUS ntStatus = STATUS_SUCCESS;
   UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
   WCHAR pwcInitString[MAX_BUFFER_SIZE];
@@ -169,8 +289,11 @@ FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
   ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
   pEventRecord->uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
 
-  wcscat(pEventRecord->objInfo.fileInfo.pwcFileName,
-         pFltObj->FileObject->FileName.Buffer);
+  // wcscat(pEventRecord->objInfo.fileInfo.pwcFileName,
+  //        pFltObj->FileObject->FileName.Buffer);
+  RtlCopyMemory(pEventRecord->objInfo.fileInfo.pwcFileName,
+                pFltObj->FileObject->FileName.Buffer,
+                pFltObj->FileObject->FileName.Length);
   pEventRecord->objInfo.fileInfo.uiFileNameLength =
       pFltObj->FileObject->FileName.Length;
 
@@ -186,77 +309,81 @@ FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
     DbgPrint("GetVolumeName failed 0x%08x", ntStatus);
   }
   wcscat(pEventRecord->objInfo.fileInfo.pwcVolumeName, usVolumeName.Buffer);
+  RtlCopyMemory(pEventRecord->objInfo.fileInfo.pwcVolumeName,
+                usVolumeName.Buffer, usVolumeName.Length);
   pEventRecord->objInfo.fileInfo.uiVolumeNameLength = usVolumeName.Length;
+
+  pEventRecord->objInfo.fileInfo.iOperationStatus =
+      pCallbackData->IoStatus.Status;
 
   switch (pCallbackData->Iopb->MajorFunction) {
     case IRP_MJ_CREATE:
-      //DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
+      // DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
+      //          pFltObj->FileObject->FileName);
       pEventRecord->eventType = MFLT_OPEN;
+
+      // DbgPrint("Create options:");
+      // for (int i = 0; i < 24; i++) {
+      //   if ((pCallbackData->Iopb->Parameters.Create.Options & (1 << i)) != 0)
+      //   {
+      //     DbgPrint("0x%08x, ", (1 << i));
+      //   }
+      // }
+      // DbgPrint("\n");
       pEventRecord->objInfo.fileInfo.bIsDirectory =
-          ((pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) != 0);
+          ((pCallbackData->Iopb->Parameters.Create.Options &
+            FILE_DIRECTORY_FILE) != 0);
+      if ((pCallbackData->Iopb->Parameters.Create.Options &
+           FILE_DELETE_ON_CLOSE) != 0) {
+        pEventRecord->eventType = MFLT_DELETE;
+      }
+
+      // DbgPrint("Disposition: ");
+      switch (pCallbackData->Iopb->Parameters.Create.Options >> 24) {
+        case FILE_SUPERSEDE:
+        case FILE_OVERWRITE_IF:
+          pEventRecord->eventType = MFLT_CREATE;
+          pEventRecord->objInfo.fileInfo.bIsOverwritten = TRUE;
+          break;
+        case FILE_CREATE:
+        case FILE_OPEN_IF:
+          pEventRecord->eventType = MFLT_CREATE;
+          pEventRecord->objInfo.fileInfo.bIsOverwritten = FALSE;
+          break;
+        case FILE_OPEN:
+          pEventRecord->objInfo.fileInfo.bIsOverwritten = FALSE;
+          break;
+        case FILE_OVERWRITE:
+          pEventRecord->objInfo.fileInfo.bIsOverwritten = TRUE;
+          break;
+        default:
+          break;
+      }
+
+      // DbgPrint("Status: 0x%08x\n", pCallbackData->IoStatus.Status);
+
       break;
     case IRP_MJ_CLOSE:
-      //DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
+      // DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
+      // pFltObj->FileObject->FileName);
       pEventRecord->eventType = MFLT_CLOSE;
       break;
     case IRP_MJ_WRITE:
-      //DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
+      // DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
+      // pFltObj->FileObject->FileName);
       pEventRecord->eventType = MFLT_WRITE;
       break;
     default:
       break;
   }
 
+  // DbgPrint("Status: 0x%08x\n", pCallbackData->IoStatus.Status);
+  // ExFreePool(pEventRecord);
+
   pWorkItem = FltAllocateGenericWorkItem();
   FltQueueGenericWorkItem(pWorkItem, mfltData.pFilter,
                           mfltSendMessageWorkItemRoutine, DelayedWorkQueue,
                           pEventRecord);
-
-  // ExFreePool(pEventRecord);
-
-  // DbgBreakPoint();
-  // MFLT_SEND_MESSAGE sendMsg;
-  // if (mfltData.pClientPort != NULL) {
-  //  RtlZeroMemory(&sendMsg, sizeof(sendMsg));
-  //  liTimeOut.QuadPart = MAX_TIMEOUT;
-
-  //  sendMsg.uiEventRecordCount = mfltData.uiEventRecordCount;
-  //  for (ULONG uiCurrentEventRecordBufferId = 0;
-  //       uiCurrentEventRecordBufferId < mfltData.uiEventRecordCount;
-  //       uiCurrentEventRecordBufferId++) {
-  //    sendMsg.pEventRecordBuffer[uiCurrentEventRecordBufferId] =
-  //        mfltData.pEventRecordBuffer[uiCurrentEventRecordBufferId];
-  //  }
-
-  //  if (!mfltData.bIsComPortClosed) {
-  //    ntStatus =
-  //        FltSendMessage(mfltData.pFilter, &mfltData.pClientPort, &sendMsg,
-  //                       sizeof(MFLT_SEND_MESSAGE), NULL, 0, NULL);
-  //    if (ntStatus != STATUS_SUCCESS) {
-  //      DbgPrint("Send event record failed 0x%08x\n", ntStatus);
-  //    }
-  //  }
-  //}
-
-  // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
-
-  return FLT_PREOP_SUCCESS_WITH_CALLBACK;
-}
-
-FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
-    PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
-    PVOID* pCompletionContext, FLT_POST_OPERATION_FLAGS postOperationFlags) {
-  // DbgBreakPoint();
-  // DbgPrint("mfltPostCreate called\n");
-
-  // if (pCallbackData->Iopb->MajorFunction == IRP_MJ_CREATE) {
-  //   DbgPrint("%d\n",
-  //            (pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) !=
-  //            0);
-  // }
 
   return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -279,39 +406,45 @@ VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
   ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
   pEventRecord->uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
   if (pCreateInfo != NULL) {
-    //DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
-             //pCreateInfo->ParentProcessId);
+    // DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
+    // pCreateInfo->ParentProcessId);
     pEventRecord->eventType = MFLT_PROCESS_CREATE;
     pEventRecord->objInfo.procInfo.uiPID = (ULONG)hPid;
     pEventRecord->objInfo.procInfo.uiParentPID =
         (ULONG)pCreateInfo->ParentProcessId;
     if (pCreateInfo->ImageFileName->Buffer != NULL) {
-      wcscat(pEventRecord->objInfo.procInfo.pwcImageName,
-             pCreateInfo->ImageFileName->Buffer);
+      //DbgBreakPoint();
+      RtlCopyMemory(pEventRecord->objInfo.procInfo.pwcImageName,
+                    pCreateInfo->ImageFilenoName->Buffer,
+                    pCreateInfo->ImageFileName->Length);
       pEventRecord->objInfo.procInfo.uiImageNameLength =
           pCreateInfo->ImageFileName->Length;
     }
-    //DbgBreakPoint();
+    // DbgBreakPoint();
     if (pCreateInfo->CommandLine->Buffer != NULL) {
       if (pCreateInfo->CommandLine->Length <= UM_MAX_PATH) {
-        wcscat(pEventRecord->objInfo.procInfo.pwcCommandLine,
-               pCreateInfo->CommandLine->Buffer);
+        RtlCopyMemory(pEventRecord->objInfo.procInfo.pwcCommandLine,
+                      pCreateInfo->CommandLine->Buffer,
+                      pCreateInfo->CommandLine->Length);
+        /*wcscat(pEventRecord->objInfo.procInfo.pwcCommandLine,
+               pCreateInfo->CommandLine->Buffer)*/
+        ;
         pEventRecord->objInfo.procInfo.uiCommandLineLength =
             pCreateInfo->CommandLine->Length;
       } else {
         RtlCopyMemory(pEventRecord->objInfo.procInfo.pwcCommandLine,
                       pCreateInfo->CommandLine->Buffer,
-                      (UM_MAX_PATH - wcslen(pwcTruncated)) * sizeof(WCHAR));
+                      (UM_MAX_PATH - 1 - wcslen(pwcTruncated)));
         wcscat(pEventRecord->objInfo.procInfo.pwcCommandLine, pwcTruncated);
-        pEventRecord->objInfo.procInfo.uiCommandLineLength = UM_MAX_PATH;
+        pEventRecord->objInfo.procInfo.uiCommandLineLength = wcslen(pEventRecord->objInfo.procInfo.pwcCommandLine);
       }
     }
 
   } else {
     NTSTATUS ntsExitCode = PsGetProcessExitStatus(pProcess);
-    //DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid,
-    //         ntsExitCode, ntsExitCode);
-    // DbgPrint("Process PID = %d exited.\n", hPid);
+    // DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid,
+    //          ntsExitCode, ntsExitCode);
+    //  DbgPrint("Process PID = %d exited.\n", hPid);
     pEventRecord->eventType = MFLT_PROCESS_TERMINATE;
     pEventRecord->objInfo.procInfo.uiPID = (ULONG)hPid;
     pEventRecord->objInfo.procInfo.iExitcode = (ULONG)ntsExitCode;

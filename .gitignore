@@ -3,3 +3,5 @@
 Temp
 x64
 node_modules
+.venv
+__pycache__
