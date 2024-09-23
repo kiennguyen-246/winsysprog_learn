@@ -1,12 +1,13 @@
 #ifndef WEB_SOCKET_CLIENT_HPP
 #define WEB_SOCKET_CLIENT_HPP
 
-#include <Windows.h>
+#include <winsock2.h>
 #include <websocket.h>
 
 #include <iostream>
 
 #include "TransportManager.hpp"
+#include "ClientHTTPSocket.hpp"
 
 const int WSC_MAX_BUFFER_SIZE = TM_MAX_BUFFER_SIZE;
 const int WSC_MAX_NUMBER_OF_BUFFERS = 2;
@@ -16,27 +17,31 @@ class WebSocketClient {
   WebSocketClient();
   ~WebSocketClient();
 
-  bool wscGetHostName(LPSTR pcHostName, ULONG& uiLength);
+  //std::string wscGetHostName();
 
-  bool wscSetHostName(LPCSTR pcHostName, const ULONG& uiLength);
+  //bool wscSetHostName(const std::string& sNewHostName);
 
   HRESULT wscInitialize();
 
-  HRESULT wscPerformHandshake();
+  HRESULT wscPerformHandshake(std::wstring wsHost, std::wstring wsPort);
 
-  HRESULT wscPerformDataExchange();
+  HRESULT wscPerformDataExchange(std::wstring wsMsg);
 
   HRESULT wscDeleteHandle();
 
  private:
-  std::string sHostName;
+  std::string sFullHostName;
 
   WEB_SOCKET_HANDLE wshClient;
-  // WEB_SOCKET_HANDLE wshServer;
+  //WEB_SOCKET_HANDLE wshServer;
+  
+  ClientHTTPSocket chs;
 
   TransportManager tm;
 
   HRESULT wscRunGetActionLoop();
+
+  bool bIsHandshakeSuccessful;
 };
 
 #endif
