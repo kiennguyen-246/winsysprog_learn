@@ -15,20 +15,20 @@ NTSTATUS DriverQueryTeardown(PCFLT_RELATED_OBJECTS FltObjects,
                              FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags);
 
 NTSTATUS mfltComConnect(PFLT_PORT pClientPort, PVOID pServerPortCookie,
-                        PVOID pConnectionContext, ULONG uiSizeOfContext,
-                        PVOID *pConnectionCookie);
+                    PVOID pConnectionContext, ULONG uiSizeOfContext,
+                    PVOID* pConnectionCookie);
 NTSTATUS mfltComDisconnect(PVOID pConnectionCookie);
-// NTSTATUS comMessage(PVOID pConnectionCookie, PVOID pInputBuffer,
-//                     ULONG uiInputBufferSize, PVOID pcOutputBuffer,
-//                     ULONG uiOutputBufferSize,
-//                     PULONG puiReturnOutputBufferLength);
+//NTSTATUS comMessage(PVOID pConnectionCookie, PVOID pInputBuffer,
+//                    ULONG uiInputBufferSize, PVOID pcOutputBuffer,
+//                    ULONG uiOutputBufferSize,
+//                    PULONG puiReturnOutputBufferLength);
 
 VOID mfltContextCleanup(PFLT_CONTEXT pFltContext,
                         FLT_CONTEXT_TYPE fltContextType);
 
 FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
-                                    PCFLT_RELATED_OBJECTS pFltObj,
-                                    PVOID *pCompletionContext);
+                                        PCFLT_RELATED_OBJECTS pFltObj,
+                                        PVOID *pCompletionContext);
 
 FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
     PFLT_CALLBACK_DATA pCallbackData, PCFLT_RELATED_OBJECTS pFltObj,
@@ -37,24 +37,23 @@ FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
 VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
                              PPS_CREATE_NOTIFY_INFO pCreateInfo);
 
-VOID mfltSendMessageWorkItemRoutine(PFLT_GENERIC_WORKITEM pWorkItem,
-                                    PVOID pFilterObject, PVOID pContext);
+VOID mfltComSendMessageWorkItemRoutine(PFLT_GENERIC_WORKITEM pWorkItem,
+                                PVOID FltObject, PVOID context);
 
-// const FLT_CONTEXT_REGISTRATION[] = {
-//         {FLT_INSTANCE_CONTEXT, 0, mfltContextCleanup,
-//         CTX_INSTANCE_CONTEXT_SIZE,
-//          CTX_INSTANCE_CONTEXT_TAG},
+//const FLT_CONTEXT_REGISTRATION[] = {
+//        {FLT_INSTANCE_CONTEXT, 0, mfltContextCleanup, CTX_INSTANCE_CONTEXT_SIZE,
+//         CTX_INSTANCE_CONTEXT_TAG},
 //
-//         {FLT_FILE_CONTEXT, 0, CtxContextCleanup, CTX_FILE_CONTEXT_SIZE,
-//          CTX_FILE_CONTEXT_TAG},
+//        {FLT_FILE_CONTEXT, 0, CtxContextCleanup, CTX_FILE_CONTEXT_SIZE,
+//         CTX_FILE_CONTEXT_TAG},
 //
-//         {FLT_STREAM_CONTEXT, 0, CtxContextCleanup, CTX_STREAM_CONTEXT_SIZE,
-//          CTX_STREAM_CONTEXT_TAG},
+//        {FLT_STREAM_CONTEXT, 0, CtxContextCleanup, CTX_STREAM_CONTEXT_SIZE,
+//         CTX_STREAM_CONTEXT_TAG},
 //
-//         {FLT_STREAMHANDLE_CONTEXT, 0, CtxContextCleanup,
-//          CTX_STREAMHANDLE_CONTEXT_SIZE, CTX_STREAMHANDLE_CONTEXT_TAG},
-//     {FLT_CONTEXT_END},
-// }
+//        {FLT_STREAMHANDLE_CONTEXT, 0, CtxContextCleanup,
+//         CTX_STREAMHANDLE_CONTEXT_SIZE, CTX_STREAMHANDLE_CONTEXT_TAG},
+//    {FLT_CONTEXT_END},
+//}
 
 const FLT_OPERATION_REGISTRATION fltOperations[] = {
     {IRP_MJ_CREATE, 0, mfltPreOp, mfltPostOp},

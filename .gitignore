@@ -3,3 +3,4 @@
 .venv
 Temp
 x64
+node_modules

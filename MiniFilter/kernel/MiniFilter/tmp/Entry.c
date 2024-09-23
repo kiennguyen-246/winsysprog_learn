@@ -44,22 +44,15 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
     return ntStatus;
   }
 
-  /*mfltData.uiEventRecordCount = 0;
-  mfltData.pEventRecordBuffer = ExAllocatePool2(
-      POOL_FLAG_NON_PAGED | POOL_FLAG_RAISE_ON_FAILURE,
-      sizeof(MFLT_EVENT_RECORD) * MAX_BUFFERED_EVENT_COUNT,
-      "BREM");
-  if (mfltData.pEventRecordBuffer == NULL) {
-    DbgPrint("Cannot allocate memory for the event record buffer");
-    return STATUS_BUFFER_TOO_SMALL;
-  }*/
-
   ntStatus = PsSetCreateProcessNotifyRoutineEx(mfltCreateProcessNotify, FALSE);
   if (ntStatus != STATUS_SUCCESS) {
     DbgPrint("Start CreateProcess notify routine failed 0x%08x\n", ntStatus);
   } else {
     DbgPrint("Start CreateProcess notify routine successfully\n", ntStatus);
   }
+
+  mfltData.pWorkItem = FltAllocateGenericWorkItem();
+  InitializeListHead(&mfltData.eventRecordList.list);
 
   // Start filtering (Must unregister immediately if fail)
   ntStatus = FltStartFiltering(mfltData.pFilter);
@@ -80,6 +73,8 @@ NTSTATUS DriverUnload(FLT_FILTER_UNLOAD_FLAGS fltUnloadFlags) {
   PsSetCreateProcessNotifyRoutineEx(mfltCreateProcessNotify, TRUE);
 
   FltCloseCommunicationPort(mfltData.pServerPort);
+
+  FltFreeGenericWorkItem(mfltData.pWorkItem);
 
   // Unregister filter
   FltUnregisterFilter(mfltData.pFilter);
@@ -143,6 +138,7 @@ VOID mfltContextCleanup(PFLT_CONTEXT pFltContext,
 FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
                                     PCFLT_RELATED_OBJECTS pFltObj,
                                     PVOID* pCompletionContext) {
+  // DbgBreakPoint();
   // DbgPrint("mfltPreCreate called\n");
 
   // DbgBreakPoint();
@@ -151,28 +147,23 @@ FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
   UNICODE_STRING usVolumeName, usComMsg, usComMsgPref, usComMsgSuf;
   WCHAR pwcInitString[MAX_BUFFER_SIZE];
   ULONG ulVolumeNameBufferSize;
-  PMFLT_EVENT_RECORD pEventRecord;
+  MFLT_EVENT_RECORD_LIST eventRecordList;
   LARGE_INTEGER liSystemTime = {0};
   LARGE_INTEGER liSystemLocalTime = {0};
-  PFLT_GENERIC_WORKITEM pWorkItem = NULL;
+
+  RtlZeroMemory(&eventRecordList, sizeof(eventRecordList));
+  InsertTailList(&mfltData.eventRecordList, &eventRecordList.list);
+
+  KeQuerySystemTime(&liSystemTime);
+  ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
+  eventRecordList.eventRecord.uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
 
   if (pFltObj->FileObject->FileName.Buffer == NULL) {
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
   }
 
-  // DbgBreakPoint();
-  pEventRecord = (PMFLT_EVENT_RECORD)ExAllocatePool2(
-      POOL_FLAG_NON_PAGED, sizeof(MFLT_EVENT_RECORD), 'REFM');
-  RtlZeroMemory(pEventRecord, sizeof(MFLT_EVENT_RECORD));
-
-  KeQuerySystemTime(&liSystemTime);
-  ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
-  pEventRecord->uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
-
-  wcscat(pEventRecord->objInfo.fileInfo.pwcFileName,
+  wcscat(eventRecordList.eventRecord.objInfo.fileInfo.pwcFileName,
          pFltObj->FileObject->FileName.Buffer);
-  pEventRecord->objInfo.fileInfo.uiFileNameLength =
-      pFltObj->FileObject->FileName.Length;
 
   for (int i = 0; i < UM_MAX_PATH - 1; i++) {
     pwcInitString[i] = L' ';
@@ -185,61 +176,39 @@ FLT_PREOP_CALLBACK_STATUS mfltPreOp(PFLT_CALLBACK_DATA pCallbackData,
   if (ntStatus != STATUS_SUCCESS) {
     DbgPrint("GetVolumeName failed 0x%08x", ntStatus);
   }
-  wcscat(pEventRecord->objInfo.fileInfo.pwcVolumeName, usVolumeName.Buffer);
-  pEventRecord->objInfo.fileInfo.uiVolumeNameLength = usVolumeName.Length;
+  wcscat(eventRecordList.eventRecord.objInfo.fileInfo.pwcVolumeName,
+         usVolumeName.Buffer);
 
   switch (pCallbackData->Iopb->MajorFunction) {
     case IRP_MJ_CREATE:
-      //DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
-      pEventRecord->eventType = MFLT_OPEN;
-      pEventRecord->objInfo.fileInfo.bIsDirectory =
+      DbgPrint("File object opened: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+      eventRecordList.eventRecord.eventType = MFLT_OPEN;
+      eventRecordList.eventRecord.objInfo.fileInfo.bIsDirectory =
           ((pCallbackData->Iopb->OperationFlags & FILE_DIRECTORY_FILE) != 0);
       break;
     case IRP_MJ_CLOSE:
-      //DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
-      pEventRecord->eventType = MFLT_CLOSE;
+      DbgPrint("File object closed: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+      eventRecordList.eventRecord.eventType = MFLT_CLOSE;
       break;
     case IRP_MJ_WRITE:
-      //DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
-               //pFltObj->FileObject->FileName);
-      pEventRecord->eventType = MFLT_WRITE;
+      DbgPrint("File object written: %wZ%wZ\n", usVolumeName,
+               pFltObj->FileObject->FileName);
+      eventRecordList.eventRecord.eventType = MFLT_WRITE;
       break;
     default:
       break;
   }
 
-  pWorkItem = FltAllocateGenericWorkItem();
-  FltQueueGenericWorkItem(pWorkItem, mfltData.pFilter,
-                          mfltSendMessageWorkItemRoutine, DelayedWorkQueue,
-                          pEventRecord);
+  DbgBreakPoint();
 
-  // ExFreePool(pEventRecord);
-
-  // DbgBreakPoint();
-  // MFLT_SEND_MESSAGE sendMsg;
-  // if (mfltData.pClientPort != NULL) {
-  //  RtlZeroMemory(&sendMsg, sizeof(sendMsg));
-  //  liTimeOut.QuadPart = MAX_TIMEOUT;
-
-  //  sendMsg.uiEventRecordCount = mfltData.uiEventRecordCount;
-  //  for (ULONG uiCurrentEventRecordBufferId = 0;
-  //       uiCurrentEventRecordBufferId < mfltData.uiEventRecordCount;
-  //       uiCurrentEventRecordBufferId++) {
-  //    sendMsg.pEventRecordBuffer[uiCurrentEventRecordBufferId] =
-  //        mfltData.pEventRecordBuffer[uiCurrentEventRecordBufferId];
-  //  }
-
-  //  if (!mfltData.bIsComPortClosed) {
-  //    ntStatus =
-  //        FltSendMessage(mfltData.pFilter, &mfltData.pClientPort, &sendMsg,
-  //                       sizeof(MFLT_SEND_MESSAGE), NULL, 0, NULL);
-  //    if (ntStatus != STATUS_SUCCESS) {
-  //      DbgPrint("Send event record failed 0x%08x\n", ntStatus);
-  //    }
-  //  }
-  //}
+  ntStatus = FltQueueGenericWorkItem(
+      mfltData.pWorkItem, mfltData.pFilter, mfltComSendMessageWorkItemRoutine,
+      DelayedWorkQueue, NULL);
+  if (ntStatus != STATUS_SUCCESS) {
+    DbgPrint("Queuing send message work item failed 0x%08x", ntStatus);
+  }
 
   // DbgPrint("Open file: %wZ\n", pFltObj->FileObject->FileName);
 
@@ -263,87 +232,75 @@ FLT_POSTOP_CALLBACK_STATUS mfltPostOp(
 
 VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
                              PPS_CREATE_NOTIFY_INFO pCreateInfo) {
-  PMFLT_EVENT_RECORD pEventRecord;
+  DbgBreakPoint();
+
+  NTSTATUS ntStatus = STATUS_SUCCESS;
+  MFLT_EVENT_RECORD eventRecord;
   LARGE_INTEGER liSystemTime = {0};
   LARGE_INTEGER liSystemLocalTime = {0};
-  PFLT_GENERIC_WORKITEM pWorkItem = NULL;
-  WCHAR pwcTruncated[] = L"... (truncated)";
 
-  pEventRecord = (PMFLT_EVENT_RECORD)ExAllocatePool2(
-      POOL_FLAG_NON_PAGED, sizeof(MFLT_EVENT_RECORD), 'REFM');
-  RtlZeroMemory(pEventRecord, sizeof(MFLT_EVENT_RECORD));
-
-  // DbgBreakPoint();
+  RtlZeroMemory(&eventRecord, sizeof(eventRecord));
 
   KeQuerySystemTime(&liSystemTime);
   ExSystemTimeToLocalTime(&liSystemTime, &liSystemLocalTime);
-  pEventRecord->uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
+  eventRecord.uliSysTime.QuadPart = liSystemLocalTime.QuadPart;
   if (pCreateInfo != NULL) {
-    //DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
-             //pCreateInfo->ParentProcessId);
-    pEventRecord->eventType = MFLT_PROCESS_CREATE;
-    pEventRecord->objInfo.procInfo.uiPID = (ULONG)hPid;
-    pEventRecord->objInfo.procInfo.uiParentPID =
+    DbgPrint("Process PID = %d created from parent process PID = %d\n", hPid,
+             pCreateInfo->ParentProcessId);
+    eventRecord.eventType = MFLT_PROCESS_CREATE;
+    eventRecord.objInfo.procInfo.uiPID = (ULONG)hPid;
+    eventRecord.objInfo.procInfo.uiParentPID =
         (ULONG)pCreateInfo->ParentProcessId;
     if (pCreateInfo->ImageFileName->Buffer != NULL) {
-      wcscat(pEventRecord->objInfo.procInfo.pwcImageName,
+      wcscat(eventRecord.objInfo.procInfo.pwcImageName,
              pCreateInfo->ImageFileName->Buffer);
-      pEventRecord->objInfo.procInfo.uiImageNameLength =
-          pCreateInfo->ImageFileName->Length;
     }
-    //DbgBreakPoint();
     if (pCreateInfo->CommandLine->Buffer != NULL) {
-      if (pCreateInfo->CommandLine->Length <= UM_MAX_PATH) {
-        wcscat(pEventRecord->objInfo.procInfo.pwcCommandLine,
-               pCreateInfo->CommandLine->Buffer);
-        pEventRecord->objInfo.procInfo.uiCommandLineLength =
-            pCreateInfo->CommandLine->Length;
-      } else {
-        RtlCopyMemory(pEventRecord->objInfo.procInfo.pwcCommandLine,
-                      pCreateInfo->CommandLine->Buffer,
-                      (UM_MAX_PATH - wcslen(pwcTruncated)) * sizeof(WCHAR));
-        wcscat(pEventRecord->objInfo.procInfo.pwcCommandLine, pwcTruncated);
-        pEventRecord->objInfo.procInfo.uiCommandLineLength = UM_MAX_PATH;
-      }
+      wcscat(eventRecord.objInfo.procInfo.pwcCommandLine,
+             pCreateInfo->CommandLine->Buffer);
     }
 
   } else {
     NTSTATUS ntsExitCode = PsGetProcessExitStatus(pProcess);
-    //DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid,
-    //         ntsExitCode, ntsExitCode);
-    // DbgPrint("Process PID = %d exited.\n", hPid);
-    pEventRecord->eventType = MFLT_PROCESS_TERMINATE;
-    pEventRecord->objInfo.procInfo.uiPID = (ULONG)hPid;
-    pEventRecord->objInfo.procInfo.iExitcode = (ULONG)ntsExitCode;
+    DbgPrint("Process PID = %d exited with exitcode %d (0x%08x).\n", hPid,
+             ntsExitCode, ntsExitCode);
+    eventRecord.eventType = MFLT_PROCESS_TERMINATE;
+    eventRecord.objInfo.procInfo.uiPID = (ULONG)hPid;
+    eventRecord.objInfo.procInfo.iExitcode = (ULONG)ntsExitCode;
   }
 
-  pWorkItem = FltAllocateGenericWorkItem();
-  FltQueueGenericWorkItem(pWorkItem, mfltData.pFilter,
-                          mfltSendMessageWorkItemRoutine, DelayedWorkQueue,
-                          pEventRecord);
+  // ntStatus = FltQueueGenericWorkItem(mfltData.pWorkItem, mfltData.pFilter,
+  //                                    mfltComSendMessageWorkItemRoutine,
+  //                                    DelayedWorkQueue, &eventRecord);
+  // if (ntStatus != STATUS_SUCCESS) {
+  //   DbgPrint("Queuing send message work item failed 0x%08x", ntStatus);
+  // }
 }
 
-VOID mfltSendMessageWorkItemRoutine(PFLT_GENERIC_WORKITEM pWorkItem,
-                                    PVOID pFilterObject, PVOID pContext) {
-  // MFLT_SEND_MESSAGE sendMsg;
-  NTSTATUS ntStatus;
-  LARGE_INTEGER liTimeOut = {0};
+VOID mfltComSendMessageWorkItemRoutine(PFLT_GENERIC_WORKITEM pWorkItem,
+                                       PVOID pFltObject, PVOID pContext) {
+  DbgBreakPoint();
 
-  // DbgBreakPoint();
-
+  PLIST_ENTRY pCurrentListEntry = RemoveHeadList(&mfltData.eventRecordList.list);
+  if (pCurrentListEntry == NULL) {
+    return;
+  }
+  PMFLT_EVENT_RECORD pEventRecord =
+      &CONTAINING_RECORD(pCurrentListEntry, MFLT_EVENT_RECORD_LIST, list)
+          ->eventRecord;
   if (mfltData.pClientPort != NULL) {
-    // RtlZeroMemory(&sendMsg, sizeof(sendMsg));
-    // liTimeOut.QuadPart = MAX_TIMEOUT;
-
+    LARGE_INTEGER liTimeOut;
+    liTimeOut.QuadPart = MAX_TIMEOUT;
     if (!mfltData.bIsComPortClosed) {
-      ntStatus =
-          FltSendMessage(mfltData.pFilter, &mfltData.pClientPort, pContext,
+      NTSTATUS ntStatus =
+          FltSendMessage(mfltData.pFilter, &mfltData.pClientPort,
+                         pEventRecord,
                          sizeof(MFLT_EVENT_RECORD), NULL, 0, NULL);
       if (ntStatus != STATUS_SUCCESS) {
         DbgPrint("Send event record failed 0x%08x\n", ntStatus);
+        // DbgBreakPoint();
       }
     }
   }
-  ExFreePool(pContext);
-  FltFreeGenericWorkItem(pWorkItem);
+  pEventRecord = NULL;
 }
