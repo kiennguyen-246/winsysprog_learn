@@ -6,6 +6,7 @@
 #define UM_MAX_PATH 260
 
 typedef enum _MFLT_EVENT_TYPE {
+  MFLT_CREATE,
   MFLT_CLOSE,
   MFLT_DELETE,
   MFLT_OPEN,
@@ -42,6 +43,10 @@ typedef union _MFLT_OBJ_INFO {
     // BOOLEAN bIsModified;
 
      BOOLEAN bIsDirectory;
+
+     BOOLEAN bIsOverwritten;
+
+     LONG iOperationStatus;
   } fileInfo;
   struct {
     ULONG uiPID;
