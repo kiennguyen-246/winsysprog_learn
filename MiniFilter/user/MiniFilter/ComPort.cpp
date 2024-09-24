@@ -9,7 +9,7 @@ ComPort::~ComPort() {
   hComPort = NULL;
 }
 
-HRESULT ComPort::connect(std::wstring sPortName) {
+HRESULT ComPort::connectToKernelNode(std::wstring sPortName) {
   HRESULT hr = S_OK;
   hr = FilterConnectCommunicationPort(sPortName.c_str(), 0, NULL, 0, NULL,
                                       &hComPort);
@@ -38,7 +38,8 @@ HRESULT ComPort::getRecord(PMFLT_EVENT_RECORD pEventRecord) {
   // wprintf(L"0x%08x\n", pEventRecord);
   // wprintf(L"%d\n", sizeof(MFLT_EVENT_RECORD));
 
-  CopyMemory(pEventRecord, &msg.eventRecord, sizeof(MFLT_EVENT_RECORD));
+  memcpy_s(pEventRecord, sizeof(MFLT_EVENT_RECORD), &msg.eventRecord,
+           sizeof(MFLT_EVENT_RECORD));
 
   // wprintf(L"Copy memory OK\n");
   // fflush(stdout);
@@ -82,7 +83,7 @@ HRESULT ComPort::getRecord(PMFLT_EVENT_RECORD pEventRecord) {
 //  return hr;
 //}
 
-HRESULT ComPort::disconnect() {
+HRESULT ComPort::disconnectFromKernelMode() {
   CloseHandle(hComPort);
   return S_OK;
 }

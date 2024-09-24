@@ -415,7 +415,7 @@ VOID mfltCreateProcessNotify(PEPROCESS pProcess, HANDLE hPid,
     if (pCreateInfo->ImageFileName->Buffer != NULL) {
       //DbgBreakPoint();
       RtlCopyMemory(pEventRecord->objInfo.procInfo.pwcImageName,
-                    pCreateInfo->ImageFilenoName->Buffer,
+                    pCreateInfo->ImageFileName->Buffer,
                     pCreateInfo->ImageFileName->Length);
       pEventRecord->objInfo.procInfo.uiImageNameLength =
           pCreateInfo->ImageFileName->Length;

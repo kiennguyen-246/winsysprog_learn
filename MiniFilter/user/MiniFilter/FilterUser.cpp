@@ -9,12 +9,14 @@ FilterUser::FilterUser(std::wstring ws__FilterName,
   bIsFilterLoaded = false;
   bIsComPortConnected = false;
   umDosDevices.clear();
+  bShouldStop = false;
 }
 
 FilterUser::~FilterUser() {
+  bShouldStop = false;
   wfsLog.close();
   if (bIsComPortConnected) {
-    cp.disconnect();
+    cp.disconnectFromKernelMode();
   }
   if (bIsFilterLoaded) {
     unloadFilter();
@@ -46,7 +48,7 @@ HRESULT FilterUser::loadFilter() {
   wprintf(L"Filter loaded\n");
   fflush(stdout);
 
-  hr = cp.connect(wsComPortName.c_str());
+  hr = cp.connectToKernelNode(wsComPortName.c_str());
   if (FAILED(hr)) {
     wprintf(L"Connection to kernel mode failed 0x%08x\n", hr);
     return hr;
@@ -54,6 +56,34 @@ HRESULT FilterUser::loadFilter() {
   bIsComPortConnected = 1;
   wprintf(L"Connection to kernel mode established\n");
   fflush(stdout);
+
+  return hr;
+}
+
+HRESULT FilterUser::connectToServer(std::wstring wsHost, std::wstring wsPort) {
+  HRESULT hr = S_OK;
+
+  hr = wsc.init();
+  if (FAILED(hr)) {
+    wprintf(L"WebSocket initialization failed 0x%08x", hr);
+    return hr;
+  }
+
+  hr = wsc.handshake(wsHost, wsPort);
+  if (FAILED(hr)) {
+    return hr;
+  }
+
+  return hr;
+}
+
+HRESULT FilterUser::disconnectFromServer() {
+  HRESULT hr = S_OK;
+
+  hr = wsc.cleanup();
+  if (FAILED(hr)) {
+    return hr;
+  }
 
   return hr;
 }
@@ -72,7 +102,6 @@ HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeDosName) {
       return hr;
     }
     umDosDevices.insert({std::wstring(pwcVolumeName), wsVolumeDosName});
-    std::wcout << std::wstring(pwcVolumeName) << " " << wsVolumeDosName << "\n";
   }
 
   hr = FilterAttach(wsFilterName.c_str(), wsVolumeDosName.c_str(), NULL, 0,
@@ -89,18 +118,34 @@ HRESULT FilterUser::attachFilterToVolume(std::wstring wsVolumeDosName) {
 HRESULT FilterUser::detachFilterFromVolume(std::wstring wsVolumeDosName) {
   HRESULT hr = S_OK;
   hr = FilterDetach(wsFilterName.c_str(), wsVolumeDosName.c_str(), NULL);
+  if (FAILED(hr)) {
+    wprintf(L"FilterDetach failed 0x%08x\n", hr);
+    return hr;
+  }
   return hr;
 }
 
 HRESULT FilterUser::unloadFilter() {
-  HRESULT hr;
+  HRESULT hr = S_OK;
+
+  hr = cp.disconnectFromKernelMode();
+  bIsComPortConnected = 0;
+
   hr = FilterUnload(wsFilterName.c_str());
+  if (FAILED(hr)) {
+    wprintf(L"FilterUnload failed 0x%08x\n", hr);
+    return hr;
+  }
+  bIsFilterLoaded = 0;
   return hr;
 }
 
 HRESULT FilterUser::doMainRoutine() {
   HRESULT hr = S_OK;
   while (1) {
+    if (bShouldStop) {
+      break;
+    }
     /* std::vector<MFLT_EVENT_RECORD> vEventRecord;
      vEventRecord.clear();
 
@@ -125,13 +170,28 @@ HRESULT FilterUser::doMainRoutine() {
 
     std::wstring wsMsg;
     hr = composeMessage(&eventRecord, &wsMsg);
-    wprintf(wsMsg.c_str());
-    fflush(stdout);
-    wfsLog << wsMsg;
+
+    //wprintf(L"%ws\n", wsMsg.c_str());
+    //fflush(stdout);
+
+    wfsLog << wsMsg << L"\n";
     wfsLog.flush();
+
+    if (wsc.isHandshakeSuccessful()) {
+      wsc.send(wsMsg);
+    }
   }
 
+  bShouldStop = false;
+
   return hr;
+}
+
+HRESULT FilterUser::setShouldStop() {
+  //mtx.lock();
+  bShouldStop = true;
+  //mtx.unlock();
+  return S_OK;
 }
 
 HRESULT FilterUser::setPrivilege(HANDLE hToken, LPCWSTR pwcPrivilege,
@@ -243,8 +303,9 @@ HRESULT FilterUser::composeMessage(PMFLT_EVENT_RECORD pEventRecord,
 
       if (pEventRecord->eventType == MFLT_CREATE ||
           pEventRecord->eventType == MFLT_OPEN) {
-        jsObj.addSingleObj(L"isAttemptingOverwrite",
-                           std::format(L"{}", pEventRecord->objInfo.fileInfo.bIsOverwritten));
+        jsObj.addSingleObj(
+            L"isAttemptingOverwrite",
+            std::format(L"{}", pEventRecord->objInfo.fileInfo.bIsOverwritten));
       }
 
       break;
@@ -253,12 +314,14 @@ HRESULT FilterUser::composeMessage(PMFLT_EVENT_RECORD pEventRecord,
       if (pEventRecord->eventType == MFLT_PROCESS_CREATE) {
         jsObj.addSingleObj(L"eventObjType", L"process");
         jsObj.addSingleObj(L"action", L"create");
-        jsObj.addSingleObj(L"pid", std::format(L"{}", pEventRecord->objInfo.procInfo.uiPID));
+        jsObj.addSingleObj(
+            L"pid", std::format(L"{}", pEventRecord->objInfo.procInfo.uiPID));
         jsObj.addSingleObj(
             L"parentPid",
             std::format(L"{}", pEventRecord->objInfo.procInfo.uiParentPID));
         jsObj.addSingleObj(
-            L"imageFileDir", std::wstring(pEventRecord->objInfo.procInfo.pwcImageName)
+            L"imageFileDir",
+            std::wstring(pEventRecord->objInfo.procInfo.pwcImageName)
                 .substr(0, pEventRecord->objInfo.procInfo.uiImageNameLength));
         jsObj.addSingleObj(
             L"commandLine",

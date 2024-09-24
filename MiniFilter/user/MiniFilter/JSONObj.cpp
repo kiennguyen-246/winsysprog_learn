@@ -13,10 +13,27 @@ HRESULT JSONObj::addSingleObj(std::wstring wsKey, std::wstring wsValue) {
 }
 
 std::wstring JSONObj::toString() {
-  std::wstring wsRes = L"{\n";
-  for (auto &p : umSingleObjs) {
-    wsRes += std::format(L"\t\"{}\": \"{}\",\n", p.first, p.second);
+  std::wstring wsRes = L"{ ";
+  for (auto p : umSingleObjs) {
+    std::wstring wsKey = p.first;
+    std::wstring wsValue = L"";
+    for (auto& ch : p.second) {
+      if (ch == '\\') {
+        wsValue += L"\\\\\\\\";
+        continue;
+      }
+      if (ch == '"') {
+        wsValue += L"\\\\\\\"";
+        continue;
+      }
+      wsValue.push_back(ch);
+    }
+    wsRes += std::format(L"\"{}\": \"{}\", ", wsKey, wsValue);
   }
-  wsRes += L"}\n";
+  if (wsRes.length() > 2) {
+    wsRes.pop_back();
+    wsRes.pop_back();
+  }
+  wsRes += L" }";
   return wsRes;
 }

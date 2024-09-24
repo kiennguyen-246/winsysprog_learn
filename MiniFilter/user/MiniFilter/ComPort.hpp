@@ -5,8 +5,9 @@
 #include <fltUser.h>
 
 #include <vector>
-#include "utils.hpp"
+
 #include "public/public.h"
+#include "utils.hpp"
 
 typedef struct _COM_MESSAGE {
   FILTER_MESSAGE_HEADER header;
@@ -19,13 +20,13 @@ class ComPort {
 
   ~ComPort();
 
-  HRESULT connect(std::wstring sPortName);
+  HRESULT connectToKernelNode(std::wstring sPortName);
 
   HRESULT getRecord(PMFLT_EVENT_RECORD pEventRecord);
 
-  //HRESULT getRecord(std::vector<MFLT_EVENT_RECORD>* pvEventRecord);
+  // HRESULT getRecord(std::vector<MFLT_EVENT_RECORD>* pvEventRecord);
 
-  HRESULT disconnect();
+  HRESULT disconnectFromKernelMode();
 
  private:
   std::wstring wsComPortName;

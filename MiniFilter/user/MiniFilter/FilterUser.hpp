@@ -6,9 +6,10 @@
 #include <future>
 #include <map>
 
+#include "WebSocketClient.hpp"
 #include "ComPort.hpp"
-#include "utils.hpp"
 #include "JSONObj.hpp"
+#include "utils.hpp"
 
 const WCHAR DEFAULT_LOG_FILE_PATH[] = L".\\events.log";
 const int MAX_SAVED_LOG_LENGTH = 1024;
@@ -20,13 +21,19 @@ class FilterUser {
 
   HRESULT loadFilter();
 
+  HRESULT unloadFilter();
+
+  HRESULT connectToServer(std::wstring wsHost, std::wstring wsPort);
+
+  HRESULT disconnectFromServer();
+
   HRESULT attachFilterToVolume(std::wstring wsVolumeName);
 
   HRESULT detachFilterFromVolume(std::wstring wsVolumeName);
 
-  HRESULT unloadFilter();
-
   HRESULT doMainRoutine();
+
+  HRESULT setShouldStop();
 
  private:
   ComPort cp;
@@ -48,6 +55,10 @@ class FilterUser {
   bool bIsFilterLoaded;
 
   bool bIsComPortConnected;
+
+  volatile bool bShouldStop;
+
+  WebSocketClient wsc;
 
   HRESULT setPrivilege(HANDLE hToken, LPCWSTR pwcPrivilege,
                        BOOL bIsPrivilegeEnabled);

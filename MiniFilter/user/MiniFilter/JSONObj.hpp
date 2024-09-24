@@ -1,12 +1,12 @@
 #ifndef JSON_OBJ_HPP
 #define JSON_OBJ_HPP
 
+#include <Winerror.h>
+
 #include <format>
 #include <iostream>
 #include <string>
 #include <unordered_map>
-
-#include "Windows.h"
 
 class JSONObj {
  private:
