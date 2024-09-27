@@ -37,13 +37,13 @@ HRESULT WebSocketClient::init() {
   chs = ClientHTTPSocket();
   hr = chs.getSocketInitResult();
   if (FAILED(hr)) {
-    wprintf(L"WinSock initialization failed 0x%08x\n", hr);
+    fwprintf(stderr, L"WinSock initialization failed 0x%08x\n", hr);
     return hr;
   }
 
   hr = WebSocketCreateClientHandle(NULL, 0, &wshTempClient);
   if (FAILED(hr)) {
-    wprintf(L"Websocket initialization failed 0x%08x\n", hr);
+    fwprintf(stderr, L"Websocket initialization failed 0x%08x\n", hr);
     if (wshTempClient != NULL) {
       WebSocketDeleteHandle(wshTempClient);
       wshTempClient = NULL;
@@ -90,7 +90,7 @@ HRESULT WebSocketClient::handshake(std::wstring wsHost, std::wstring wsPort) {
                                      &pClientAdditionalHeaders,
                                      &uiClientAdditionalHeadersCount);
   if (FAILED(hr)) {
-    wprintf(L"WebSocketBeginClientHandshake failed 0x%08x\n", hr);
+    fwprintf(stderr, L"WebSocketBeginClientHandshake failed 0x%08x\n", hr);
     return hr;
   }
 
@@ -127,7 +127,7 @@ HRESULT WebSocketClient::handshake(std::wstring wsHost, std::wstring wsPort) {
 
   int iHTTPStatus = chs.getResponseHTTPStatus();
   if (iHTTPStatus != 101) {
-    wprintf(L"Handshake to the server failed. HTTP Status is %d\n",
+    fwprintf(stderr, L"Handshake to the server failed. HTTP Status is %d\n",
             iHTTPStatus);
     return E_FAIL;
   }
@@ -155,7 +155,7 @@ HRESULT WebSocketClient::handshake(std::wstring wsHost, std::wstring wsPort) {
                                    uiServerAdditionalHeadersCount, NULL, 0,
                                    NULL);
   if (FAILED(hr)) {
-    wprintf(L"WebSocketEndClientHandshake failed 0x%08x\n", hr);
+    fwprintf(stderr, L"WebSocketEndClientHandshake failed 0x%08x\n", hr);
     return hr;
   }
 
@@ -165,7 +165,7 @@ HRESULT WebSocketClient::handshake(std::wstring wsHost, std::wstring wsPort) {
   //   return hr;
   // }
 
-  std::wcout << L"Handshake ended successfully\n";
+  //std::wcout << L"Handshake ended successfully\n";
   bIsHandshakeSuccessful = 1;
   return hr;
 }
@@ -178,12 +178,12 @@ HRESULT WebSocketClient::send(std::wstring wsMsg) {
   wsbBuffer.Data.ulBufferLength = (ULONG)wsMsg.size() * sizeof(WCHAR);
 
   // std::wcout << "Queuing a send with a buffer\n";
-  // wprintf(L"Data pending: %ws\n", wsMsg.c_str());
+  // fwprintf(stderr, L"Data pending: %ws\n", wsMsg.c_str());
 
   hr = WebSocketSend(wshClient, WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, &wsbBuffer,
                      NULL);
   if (FAILED(hr)) {
-    wprintf(L"WebSocketSend failed 0x%08x\n", hr);
+    fwprintf(stderr, L"WebSocketSend failed 0x%08x\n", hr);
     return hr;
   }
 
@@ -196,7 +196,7 @@ HRESULT WebSocketClient::send(std::wstring wsMsg) {
 
   //hr = WebSocketReceive(wshClient, NULL, NULL);
   //if (FAILED(hr)) {
-  //  wprintf(L"WebSocketReceive failed 0x%08x\n", hr);
+  //  fwprintf(stderr, L"WebSocketReceive failed 0x%08x\n", hr);
   //  return hr;
   //}
 
@@ -205,7 +205,7 @@ HRESULT WebSocketClient::send(std::wstring wsMsg) {
   //  return hr;
   //}
 
-  // wprintf(L"Data received: %ws\n", (LPWSTR)wsbBuffer.Data.pbBuffer);
+  // fwprintf(stderr, L"Data received: %ws\n", (LPWSTR)wsbBuffer.Data.pbBuffer);
 
   return hr;
 }
@@ -230,7 +230,7 @@ HRESULT WebSocketClient::runGetActionLoop() {
                             &uiBufferCount, &action, &bufferType, NULL,
                             &actionContext);
     if (FAILED(hr)) {
-      wprintf(L"WebSocketGetAction failed 0x%08x\n", hr);
+      fwprintf(stderr, L"WebSocketGetAction failed 0x%08x\n", hr);
       WebSocketAbortHandle(wshClient);
     }
 
@@ -261,8 +261,8 @@ HRESULT WebSocketClient::runGetActionLoop() {
         //    break;
         //  }
         //}
-        /*wprintf(L"Size of buffer is %d\n", pwsbBuffers[0].Data.ulBufferLength);
-        wprintf(L"Number of buffer is %d\n", uiBufferCount);*/
+        /*fwprintf(stderr, L"Size of buffer is %d\n", pwsbBuffers[0].Data.ulBufferLength);
+        fwprintf(stderr, L"Number of buffer is %d\n", uiBufferCount);*/
 
         hr = chs.receiveData((LPSTR)pwsbBuffers[0].Data.pbBuffer,
                              &pwsbBuffers[0].Data.ulBufferLength,
@@ -272,14 +272,14 @@ HRESULT WebSocketClient::runGetActionLoop() {
         }
         
         uiBytesTransfered = pwsbBuffers[0].Data.ulBufferLength;
-        //wprintf(L"Receive through socket OK\n");
+        //fwprintf(stderr, L"Receive through socket OK\n");
 
         break;
 
       case WEB_SOCKET_INDICATE_RECEIVE_COMPLETE_ACTION:
         // std::wcout << (L"Receiving operation completed with a buffer\n");
         if (uiBufferCount != 1) {
-          //wprintf(L"Number of buffer is %d\n",
+          //fwprintf(stderr, L"Number of buffer is %d\n",
           //        uiBufferCount);
           assert(0);
           hr = E_FAIL;
@@ -303,7 +303,7 @@ HRESULT WebSocketClient::runGetActionLoop() {
         if (FAILED(hr)) {
           break;
         }
-        //wprintf(L"Send through socket OK\n");
+        //fwprintf(stderr, L"Send through socket OK\n");
         uiBytesTransfered = pwsbBuffers[0].Data.ulBufferLength;
         break;
 

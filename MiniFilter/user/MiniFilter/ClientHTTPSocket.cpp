@@ -75,10 +75,10 @@ HRESULT ClientHTTPSocket::sendGETRequest() {
   int iResult = send(connectSocket, pcMsg, (int)strlen(pcMsg), 0);
   if (iResult == SOCKET_ERROR) {
     hr = WSAGetLastError();
-    wprintf(L"Send HTTP request failed 0x%08x\n", hr);
+    fwprintf(stderr, L"Send HTTP request failed 0x%08x\n", hr);
     return hr;
   } else {
-    wprintf(L"HTTP request sent.\n");
+    fwprintf(stderr, L"HTTP request sent.\n");
   }
   return hr;
 }
@@ -89,11 +89,11 @@ HRESULT ClientHTTPSocket::receiveResponse() {
   int iResult = recv(connectSocket, pcBuffer, CHS_MAX_MESSAGE_SIZE, 0);
   if (iResult == 0) {
     hr = E_FAIL;
-    wprintf(L"Connection closed\n");
+    fwprintf(stderr, L"Connection closed\n");
     return hr;
   } else if (iResult < 0) {
     hr = WSAGetLastError();
-    wprintf(L"Receive HTTP response failed 0x%08x", hr);
+    fwprintf(stderr, L"Receive HTTP response failed 0x%08x", hr);
     return hr;
   }
 

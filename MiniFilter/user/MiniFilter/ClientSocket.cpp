@@ -8,7 +8,7 @@ ClientSocket::ClientSocket() {
   int iResult = 0;
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult) {
-    wprintf(L"WSAStartup failed: 0x%08x\n", iResult);
+    fwprintf(stderr, L"WSAStartup failed: 0x%08x\n", iResult);
     hrSocketInitResult = iResult;
   }
 
@@ -35,7 +35,7 @@ HRESULT ClientSocket::connectToHost(std::wstring wsHost, std::wstring wsPort) {
 
   iResult = GetAddrInfo(wsHost.c_str(), wsPort.c_str(), &hints, &pResult);
   if (iResult) {
-    wprintf(L"GetAddrInfo failed: 0x%08x\n", iResult);
+    fwprintf(stderr, L"GetAddrInfo failed: 0x%08x\n", iResult);
     return E_FAIL;
   }
 
@@ -44,7 +44,7 @@ HRESULT ClientSocket::connectToHost(std::wstring wsHost, std::wstring wsPort) {
 
   if (connectSocket == INVALID_SOCKET) {
     HRESULT hrLastError = WSAGetLastError();
-    wprintf(L"Error at socket(): 0x%08x\n", hrLastError);
+    fwprintf(stderr, L"Error at socket(): 0x%08x\n", hrLastError);
     FreeAddrInfo(pResult);
     return hrLastError;
   }
@@ -53,7 +53,7 @@ HRESULT ClientSocket::connectToHost(std::wstring wsHost, std::wstring wsPort) {
 
   if (iResult) {
     HRESULT hrLastError = WSAGetLastError();
-    wprintf(L"Connect to server failed: 0x%08x\n", hrLastError);
+    fwprintf(stderr, L"Connect to server failed: 0x%08x\n", hrLastError);
     FreeAddrInfo(pResult);
     return hrLastError;
   }
@@ -66,7 +66,7 @@ HRESULT ClientSocket::disconnectFromCurrentHost() {
   iResult = shutdown(connectSocket, SD_SEND);
   if (iResult) {
     HRESULT hrLastError = WSAGetLastError();
-    wprintf(L"Connection shutdown failed 0x%08x\n", hrLastError);
+    fwprintf(stderr, L"Connection shutdown failed 0x%08x\n", hrLastError);
     return hrLastError;
   }
   return S_OK;
@@ -78,10 +78,10 @@ HRESULT ClientSocket::sendMsg(std::wstring* pwsMsg) {
                  (int)pwsMsg->length() * sizeof(WCHAR), 0);
   if (iResult == SOCKET_ERROR) {
     HRESULT hrLastError = WSAGetLastError();
-    wprintf(L"Send message failed 0x%08x\n", hrLastError);
+    fwprintf(stderr, L"Send message failed 0x%08x\n", hrLastError);
     return hrLastError;
   } else {
-    // wprintf(L"Message sent: %ws", pwsMsg->c_str());
+    // fwprintf(stderr, L"Message sent: %ws", pwsMsg->c_str());
   }
   return S_OK;
 }
@@ -95,11 +95,11 @@ HRESULT ClientSocket::receiveMsg(std::wstring* pwsMsg) {
   iResult = recv(connectSocket, cBuffer, 1024, 0);
   if (iResult == 0) {
     hr = E_FAIL;
-    wprintf(L"Receiving failed due to connection closed\n");
+    fwprintf(stderr, L"Receiving failed due to connection closed\n");
     return hr;
   } else if (iResult < 0) {
     hr = WSAGetLastError();
-    wprintf(L"Receive HTTP response failed 0x%08x", hr);
+    fwprintf(stderr, L"Receive HTTP response failed 0x%08x", hr);
     return hr;
   }
   *pwsMsg = (LPWSTR)cBuffer;
@@ -111,10 +111,10 @@ HRESULT ClientSocket::sendData(LPSTR pcBuffer, PULONG puiBufferLengthSend) {
   iResult = send(connectSocket, pcBuffer, *puiBufferLengthSend, 0);
   if (iResult == SOCKET_ERROR) {
     HRESULT hrLastError = WSAGetLastError();
-    wprintf(L"Send message failed 0x%08x\n", hrLastError);
+    fwprintf(stderr, L"Send message failed 0x%08x\n", hrLastError);
     return hrLastError;
   } else {
-    // wprintf(L"Message sent: %ws", pwsMsg->c_str());
+    // fwprintf(stderr, L"Message sent: %ws", pwsMsg->c_str());
   }
   return S_OK;
 }
@@ -127,11 +127,11 @@ HRESULT ClientSocket::receiveData(LPSTR pcBuffer, PULONG puiBufferMaximumLength,
   iResult = recv(connectSocket, pcBuffer, *puiBufferMaximumLength, 0);
   if (iResult == 0) {
     hr = E_FAIL;
-    wprintf(L"Receiving failed due to connection closed\n");
+    fwprintf(stderr, L"Receiving failed due to connection closed\n");
     return hr;
   } else if (iResult < 0) {
     hr = WSAGetLastError();
-    wprintf(L"Receive HTTP response failed 0x%08x", hr);
+    fwprintf(stderr, L"Receive HTTP response failed 0x%08x", hr);
     return hr;
   }
   *puiBufferLengthReceived = iResult;
