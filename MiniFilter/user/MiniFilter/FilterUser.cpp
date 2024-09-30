@@ -184,7 +184,7 @@ HRESULT FilterUser::doMainRoutine() {
     wfsLog.flush();
 
     if (wsc.isHandshakeSuccessful()) {
-      wsc.send(wsMsg);
+      wsc.queueMsg(wsMsg);
     }
   }
 

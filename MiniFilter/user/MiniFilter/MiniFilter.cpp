@@ -11,8 +11,8 @@ const WCHAR FILTER_DRIVER_PATH[] = L"";
 const WCHAR FILTER_COM_PORT_NAME[] = L"\\MiniFilterPort";
 const WCHAR EVENT_LOG_FILE[] = L".\\events.log";
 const WCHAR ERROR_LOG_FILE[] = L".\\error.log";
-const WCHAR SERVER_HOST[] =
-    L"192.168.88.137";
+const WCHAR SERVER_HOST[] = L"192.168.0.104";
+//const WCHAR SERVER_HOST[] = L"192.168.150.129";
 const WCHAR SERVER_PORT[] = L"55555";
 const WCHAR INSTRUCTIONS[] =
     L"Type:\n"
@@ -24,6 +24,18 @@ const WCHAR INSTRUCTIONS[] =
 
 int wmain(int argc, LPWSTR argv[]) {
   HRESULT hr = S_OK;
+
+  WebSocketClient wsc;
+
+  wsc.init();
+  wsc.handshake(SERVER_HOST, SERVER_PORT);
+  wsc.queueMsg(L"24062004");
+  wsc.queueMsg(L"06122004");
+
+  getchar();
+  wsc.setShouldStop();
+
+  return 0;
 
   FILE* stream;
   _wfreopen_s(&stream, ERROR_LOG_FILE, L"w", stderr);
@@ -37,57 +49,57 @@ int wmain(int argc, LPWSTR argv[]) {
   wprintf(L"MINIFILTER\n-----------------------------\n\n");
   wprintf(INSTRUCTIONS);
 
-  //ULONG uiFileVersionInfoBlockSize = GetFileVersionInfoSize(
-  //    L"C:\\Program Files\\Microsoft Visual "
-  //   L"Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
-  //    NULL);
-  //struct LANGCODEPAGE {
-  //  WORD wLanguage;
-  //  WORD wCodePage;
-  //}* lpLangCodePage;
-  //ULONG uiLangCodePageSize;
-  //LPWSTR pwcFileVersionInfoEntryResult = NULL;
-  //ULONG uiFileVersionInfoEntryResultSize = 0;
-  //if (uiFileVersionInfoBlockSize != 0) {
-  //  LPVOID lpFileVersionInfoBlock = malloc(uiFileVersionInfoBlockSize);
-  //  if (GetFileVersionInfo(L"C:\\Program Files\\Microsoft Visual "
-  //                         L"Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
-  //                         0,
-  //                         uiFileVersionInfoBlockSize,
-  //                         lpFileVersionInfoBlock)) {
-  //    VerQueryValue(lpFileVersionInfoBlock, L"\\VarFileInfo\\Translation",
-  //                  (LPVOID*)&lpLangCodePage, (PUINT)&uiLangCodePageSize);
-  //    BOOLEAN bHasCompanyName = FALSE;
-  //    for (int i = 0; i < uiLangCodePageSize / sizeof(LANGCODEPAGE); i++) {
-  //      wprintf(std::format(L"\\StringFileInfo\\{:04x}{:04x}\\ProductName",
-  //                          lpLangCodePage[i].wLanguage,
-  //                          lpLangCodePage[i].wCodePage)
-  //                  .c_str());
-  //      if (VerQueryValue(
-  //              lpFileVersionInfoBlock,
-  //              std::format(L"\\StringFileInfo\\{:04x}{:04x}\\ProductName",
-  //                          lpLangCodePage[i].wLanguage,
-  //                          lpLangCodePage[i].wCodePage)
-  //                  .c_str(),
-  //              (LPVOID*)&pwcFileVersionInfoEntryResult,
-  //              (PUINT)&uiFileVersionInfoEntryResultSize)) {
-  //        if (uiFileVersionInfoEntryResultSize != 0) {
-  //          wprintf(L"Company name is %ws\n", pwcFileVersionInfoEntryResult);
-  //          bHasCompanyName = TRUE;
-  //          break;
-  //        }
-  //      }
-  //    }
-  //    if (!bHasCompanyName) {
-  //      //jsObj.addSingleObj(L"imageFileCompanyName", L"Unknown");
-  //      wprintf(L"Company name is unknown");
-  //    }
-  //  } else {
+  // ULONG uiFileVersionInfoBlockSize = GetFileVersionInfoSize(
+  //     L"C:\\Program Files\\Microsoft Visual "
+  //    L"Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
+  //     NULL);
+  // struct LANGCODEPAGE {
+  //   WORD wLanguage;
+  //   WORD wCodePage;
+  // }* lpLangCodePage;
+  // ULONG uiLangCodePageSize;
+  // LPWSTR pwcFileVersionInfoEntryResult = NULL;
+  // ULONG uiFileVersionInfoEntryResultSize = 0;
+  // if (uiFileVersionInfoBlockSize != 0) {
+  //   LPVOID lpFileVersionInfoBlock = malloc(uiFileVersionInfoBlockSize);
+  //   if (GetFileVersionInfo(L"C:\\Program Files\\Microsoft Visual "
+  //                          L"Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
+  //                          0,
+  //                          uiFileVersionInfoBlockSize,
+  //                          lpFileVersionInfoBlock)) {
+  //     VerQueryValue(lpFileVersionInfoBlock, L"\\VarFileInfo\\Translation",
+  //                   (LPVOID*)&lpLangCodePage, (PUINT)&uiLangCodePageSize);
+  //     BOOLEAN bHasCompanyName = FALSE;
+  //     for (int i = 0; i < uiLangCodePageSize / sizeof(LANGCODEPAGE); i++) {
+  //       wprintf(std::format(L"\\StringFileInfo\\{:04x}{:04x}\\ProductName",
+  //                           lpLangCodePage[i].wLanguage,
+  //                           lpLangCodePage[i].wCodePage)
+  //                   .c_str());
+  //       if (VerQueryValue(
+  //               lpFileVersionInfoBlock,
+  //               std::format(L"\\StringFileInfo\\{:04x}{:04x}\\ProductName",
+  //                           lpLangCodePage[i].wLanguage,
+  //                           lpLangCodePage[i].wCodePage)
+  //                   .c_str(),
+  //               (LPVOID*)&pwcFileVersionInfoEntryResult,
+  //               (PUINT)&uiFileVersionInfoEntryResultSize)) {
+  //         if (uiFileVersionInfoEntryResultSize != 0) {
+  //           wprintf(L"Company name is %ws\n", pwcFileVersionInfoEntryResult);
+  //           bHasCompanyName = TRUE;
+  //           break;
+  //         }
+  //       }
+  //     }
+  //     if (!bHasCompanyName) {
+  //       //jsObj.addSingleObj(L"imageFileCompanyName", L"Unknown");
+  //       wprintf(L"Company name is unknown");
+  //     }
+  //   } else {
 
   //  }
   //  free(lpFileVersionInfoBlock);
   //} else {
-  //  
+  //
   //}
 
   while (1) {

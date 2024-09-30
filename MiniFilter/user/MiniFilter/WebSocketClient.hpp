@@ -5,6 +5,8 @@
 #include <websocket.h>
 
 #include <iostream>
+#include <queue>
+#include <future>
 
 #include "ClientHTTPSocket.hpp"
 
@@ -24,23 +26,40 @@ class WebSocketClient {
 
   HRESULT handshake(std::wstring wsHost, std::wstring wsPort);
 
-  HRESULT send(std::wstring wsMsg);
+  HRESULT queueMsg(std::wstring wsMsg);
 
   HRESULT cleanup();
 
   bool isHandshakeSuccessful();
 
+  HRESULT setShouldStop();
+
  private:
   std::string sFullHostName;
+
+  std::wstring wsCurrentServerHost;
+  
+  std::wstring wsCurrentServerPort;
 
   WEB_SOCKET_HANDLE wshClient;
   //WEB_SOCKET_HANDLE wshServer;
   
   ClientHTTPSocket chs;
 
+  bool bIsHandshakeSuccessful;
+
+  volatile bool bShouldStop;
+
+  std::queue<std::wstring> qwsMsgQueue;
+
+  std::future<HRESULT> fSendMsgFuture;
+
   HRESULT runGetActionLoop();
 
-  bool bIsHandshakeSuccessful;
+  HRESULT send();
+
+  HRESULT reconnect();
+  
 };
 
 #endif

@@ -53,7 +53,8 @@ HRESULT ClientHTTPSocket::disconnectFromCurrentHost() {
   if (FAILED(hr)) {
     return hr;
   }
-  umssRequestHeaders.erase("Host");
+  umssRequestHeaders.clear();
+  umssResponseHeaders.clear();
   return hr;
 }
 
